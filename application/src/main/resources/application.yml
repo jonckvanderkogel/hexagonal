@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: hexagonal
+  datasource:
+    url: jdbc:postgresql://localhost:5432/hexagonal_db
+    username: user
+    password: pass
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog.xml
+
+logging:
+  level:
+    org.hibernate.SQL: warn
