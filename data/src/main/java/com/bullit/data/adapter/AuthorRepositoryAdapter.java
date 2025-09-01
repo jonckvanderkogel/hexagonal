@@ -10,11 +10,9 @@ import com.bullit.data.persistence.AuthorDataMapper;
 import com.bullit.data.persistence.AuthorJpaRepository;
 import io.vavr.control.Either;
 import io.vavr.control.Try;
-import org.springframework.stereotype.Repository;
 
 import java.util.UUID;
 
-@Repository
 public class AuthorRepositoryAdapter implements AuthorRepositoryPort {
 
     private final AuthorJpaRepository repo;

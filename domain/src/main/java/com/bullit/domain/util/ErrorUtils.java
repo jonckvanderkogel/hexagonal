@@ -1,5 +1,6 @@
-package com.bullit.domain.error;
+package com.bullit.domain.util;
 
+import com.bullit.domain.error.AppError;
 import io.vavr.collection.Seq;
 
 import java.util.function.Function;

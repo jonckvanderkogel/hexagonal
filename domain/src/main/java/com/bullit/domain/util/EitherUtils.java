@@ -5,7 +5,8 @@ import io.vavr.control.Either;
 
 public class EitherUtils {
     private EitherUtils() {}
+
     public static <L extends AppError, R> Either<AppError, R> widenLeft(Either<L, R> e) {
-        return e.mapLeft(l -> (AppError) l);
+        return e.mapLeft(l -> l);
     }
 }

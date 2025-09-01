@@ -1,6 +1,6 @@
 package com.bullit.domain.model;
 
-import com.bullit.domain.error.ErrorUtils;
+import com.bullit.domain.util.ErrorUtils;
 import com.bullit.domain.error.ValidationError;
 import io.vavr.control.Either;
 import io.vavr.control.Validation;
