@@ -6,7 +6,6 @@ import io.vavr.control.Either;
 
 import java.util.UUID;
 
-/** Primary (driving) port for Author use cases. */
 public interface AuthorService {
     Either<AppError, Author> create(String name);
     Either<AppError, Author> getById(UUID id);

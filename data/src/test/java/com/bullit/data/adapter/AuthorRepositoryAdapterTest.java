@@ -1,19 +1,21 @@
 package com.bullit.data.adapter;
 
-import com.bullit.domain.model.Author;
-import com.bullit.domain.error.AppError;
-import com.bullit.domain.error.NotFoundError;
-import com.bullit.domain.error.PersistenceError;
 import com.bullit.data.persistence.AuthorEntity;
 import com.bullit.data.persistence.AuthorJpaRepository;
-import io.vavr.control.Either;
+import com.bullit.domain.error.NotFoundError;
+import com.bullit.domain.error.PersistenceError;
+import com.bullit.domain.model.Author;
 import org.junit.jupiter.api.Test;
 
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 final class AuthorRepositoryAdapterTest {
 
@@ -26,7 +28,7 @@ final class AuthorRepositoryAdapterTest {
         var entity = new AuthorEntity(author.id(), author.name());
         when(jpa.save(any())).thenReturn(entity);
 
-        Either<? extends AppError, Author> result = adapter.save(author);
+        var result = adapter.save(author);
 
         assertThat(result.isRight()).isTrue();
         assertThat(result.get().name()).isEqualTo("Trillian");
