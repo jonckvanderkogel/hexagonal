@@ -6,7 +6,7 @@ import io.vavr.control.Either;
 
 import java.util.UUID;
 
-public interface AuthorService {
+public interface AuthorServicePort {
     Either<AppError, Author> create(String name);
     Either<AppError, Author> getById(UUID id);
 }

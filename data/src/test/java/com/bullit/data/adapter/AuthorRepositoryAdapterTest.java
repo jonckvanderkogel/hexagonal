@@ -24,7 +24,7 @@ final class AuthorRepositoryAdapterTest {
 
     @Test
     void save_mapsEntityAndBack() {
-        var author = Author.rehydrate(UUID.randomUUID(), "Trillian");
+        var author = Author.rehydrate(UUID.randomUUID(), "Trillian").get();
         var entity = new AuthorEntity(author.id(), author.name());
         when(jpa.save(any())).thenReturn(entity);
 
@@ -37,7 +37,7 @@ final class AuthorRepositoryAdapterTest {
 
     @Test
     void save_onException_returnsPersistenceError() {
-        var author = Author.rehydrate(UUID.randomUUID(), "Zaphod");
+        var author = Author.rehydrate(UUID.randomUUID(), "Zaphod").get();
         when(jpa.save(any())).thenThrow(new RuntimeException("boom"));
 
         var result = adapter.save(author);

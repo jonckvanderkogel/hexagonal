@@ -1,15 +1,13 @@
 package com.bullit.data.persistence;
 
+import com.bullit.domain.error.ValidationError;
 import com.bullit.domain.model.Author;
+import io.vavr.control.Either;
 
 public final class AuthorDataMapper {
     private AuthorDataMapper() {}
 
-    public static AuthorEntity toEntity(Author a) {
-        return new AuthorEntity(a.id(), a.name());
-    }
-
-    public static Author toDomain(AuthorEntity e) {
+    public static Either<ValidationError, Author> toDomain(AuthorEntity e) {
         return Author.rehydrate(e.getId(), e.getName());
     }
 }

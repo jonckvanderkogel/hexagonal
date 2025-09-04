@@ -3,7 +3,7 @@ package com.bullit.application;
 import com.bullit.data.adapter.AuthorRepositoryAdapter;
 import com.bullit.data.persistence.AuthorJpaRepository;
 import com.bullit.domain.port.AuthorRepositoryPort;
-import com.bullit.domain.port.AuthorService;
+import com.bullit.domain.port.AuthorServicePort;
 import com.bullit.core.usecase.AuthorServiceImpl;
 import com.bullit.web.AuthorHttpHandler;
 import org.springframework.context.annotation.Bean;
@@ -16,7 +16,7 @@ import org.springframework.web.servlet.function.ServerResponse;
 public class BeansConfig {
 
     @Bean
-    public AuthorService authorService(AuthorRepositoryPort repo) {
+    public AuthorServicePort authorService(AuthorRepositoryPort repo) {
         return new AuthorServiceImpl(repo);
     }
 
@@ -26,8 +26,8 @@ public class BeansConfig {
     }
 
     @Bean
-    public AuthorHttpHandler authorHttpHandler(AuthorService authorService) {
-        return new AuthorHttpHandler(authorService);
+    public AuthorHttpHandler authorHttpHandler(AuthorServicePort authorServicePort) {
+        return new AuthorHttpHandler(authorServicePort);
     }
 
     @Bean

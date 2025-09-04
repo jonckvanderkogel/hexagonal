@@ -4,7 +4,7 @@ import com.bullit.domain.error.NotFoundError;
 import com.bullit.domain.error.PersistenceError;
 import com.bullit.domain.error.ValidationError;
 import com.bullit.domain.model.Author;
-import com.bullit.domain.port.AuthorService;
+import com.bullit.domain.port.AuthorServicePort;
 import io.vavr.control.Either;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,21 +30,21 @@ import static org.mockito.Mockito.when;
 
 final class AuthorHttpHandlerTest {
 
-    private final AuthorService authorService = mock(AuthorService.class);
+    private final AuthorServicePort authorServicePort = mock(AuthorServicePort.class);
     private AuthorHttpHandler handler;
     private List<HttpMessageConverter<?>> converters;
 
     @BeforeEach
     void setUp() {
-        handler = new AuthorHttpHandler(authorService);
+        handler = new AuthorHttpHandler(authorServicePort);
         converters = List.of(new MappingJackson2HttpMessageConverter());
     }
 
     @Test
     void create_returns201_with_payload() throws Exception {
         var id = UUID.randomUUID();
-        when(authorService.create("Douglas Adams"))
-                .thenReturn(Either.right(Author.rehydrate(id, "Douglas Adams")));
+        when(authorServicePort.create("Douglas Adams"))
+                .thenReturn(Either.right(Author.rehydrate(id, "Douglas Adams").get()));
 
         var req = postJson("/authors", "{\"name\":\"Douglas Adams\"}");
         var res = handler.create(req);
@@ -57,7 +57,7 @@ final class AuthorHttpHandlerTest {
 
     @Test
     void create_validationError_returns400() throws Exception {
-        when(authorService.create(""))
+        when(authorServicePort.create(""))
                 .thenReturn(Either.left(new ValidationError.AuthorValidationError("Name is required")));
 
         var req = postJson("/authors", "{\"name\":\"\"}");
@@ -76,14 +76,14 @@ final class AuthorHttpHandlerTest {
         var body = writeToString(res);
         assertThat(status(res)).isEqualTo(400);
         assertThat(body).contains("\"error\":\"Invalid request body\"");
-        verifyNoInteractions(authorService);
+        verifyNoInteractions(authorServicePort);
     }
 
     @Test
     void getById_ok_returns200() throws Exception {
         var id = UUID.randomUUID();
-        when(authorService.getById(id))
-                .thenReturn(Either.right(Author.rehydrate(id, "Arthur Dent")));
+        when(authorServicePort.getById(id))
+                .thenReturn(Either.right(Author.rehydrate(id, "Arthur Dent").get()));
 
         var req = getRequestWithId(id);
         var res = handler.getById(req);
@@ -97,7 +97,7 @@ final class AuthorHttpHandlerTest {
     @Test
     void getById_notFound_returns404() throws Exception {
         var id = UUID.randomUUID();
-        when(authorService.getById(id))
+        when(authorServicePort.getById(id))
                 .thenReturn(Either.left(new NotFoundError.AuthorNotFoundError("not found")));
 
         var req = getRequestWithId(id);
@@ -111,7 +111,7 @@ final class AuthorHttpHandlerTest {
     @Test
     void getById_persistenceError_returns500() throws Exception {
         var id = UUID.randomUUID();
-        when(authorService.getById(id))
+        when(authorServicePort.getById(id))
                 .thenReturn(Either.left(new PersistenceError.AuthorPersistenceError("db down")));
 
         var req = getRequestWithId(id);

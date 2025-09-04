@@ -1,6 +1,6 @@
 package com.bullit.application;
 
-import com.bullit.domain.port.AuthorService;
+import com.bullit.domain.port.AuthorServicePort;
 import com.github.springtestdbunit.DbUnitTestExecutionListener;
 import com.github.springtestdbunit.annotation.DatabaseSetup;
 import com.github.springtestdbunit.annotation.DbUnitConfiguration;
@@ -24,18 +24,18 @@ import java.util.UUID;
 class AuthorServiceIT extends AbstractIntegrationTest {
 
     @Autowired
-    private AuthorService authorService;
+    private AuthorServicePort authorServicePort;
 
     @Test
     void createAndFindAuthor() {
         // create
-        var created = authorService.create("Douglas Adams");
+        var created = authorServicePort.create("Douglas Adams");
         Assertions.assertThat(created.isRight()).isTrue();
 
         var saved = created.get();
         Assertions.assertThat(saved.name()).isEqualTo("Douglas Adams");
 
-        var found = authorService.getById(saved.id());
+        var found = authorServicePort.getById(saved.id());
         Assertions.assertThat(found.isRight()).isTrue();
         Assertions.assertThat(found.get().id()).isEqualTo(saved.id());
     }
@@ -44,7 +44,7 @@ class AuthorServiceIT extends AbstractIntegrationTest {
     void getExistingAuthorFromDbUnitDataset() {
         var existingId = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
-        var result = authorService.getById(existingId);
+        var result = authorServicePort.getById(existingId);
         Assertions.assertThat(result.isRight()).isTrue();
         Assertions.assertThat(result.get().name()).isEqualTo("Preloaded Author");
     }

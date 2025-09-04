@@ -5,7 +5,7 @@ import com.bullit.domain.error.NotFoundError;
 import com.bullit.domain.error.PersistenceError;
 import com.bullit.domain.error.ValidationError;
 import com.bullit.domain.model.Author;
-import com.bullit.domain.port.AuthorService;
+import com.bullit.domain.port.AuthorServicePort;
 import io.vavr.control.Either;
 import io.vavr.control.Try;
 import org.springframework.http.HttpStatus;
@@ -18,21 +18,21 @@ import static com.bullit.web.util.HttpUtil.parseRequestBody;
 
 public final class AuthorHttpHandler {
 
-    private final AuthorService authorService;
+    private final AuthorServicePort authorServicePort;
 
-    public AuthorHttpHandler(AuthorService authorService) {
-        this.authorService = authorService;
+    public AuthorHttpHandler(AuthorServicePort authorServicePort) {
+        this.authorServicePort = authorServicePort;
     }
 
     public ServerResponse create(ServerRequest request) {
         return parseRequestBody(request, CreateAuthorRequest.class)
-                .flatMap(body -> authorService.create(body.name()))
+                .flatMap(body -> authorServicePort.create(body.name()))
                 .fold(this::toError, this::toCreated);
     }
 
     public ServerResponse getById(ServerRequest req) {
         return parseUuid(req.pathVariable("id"))
-                .flatMap(authorService::getById)
+                .flatMap(authorServicePort::getById)
                 .fold(this::toError, this::toOk);
     }
 

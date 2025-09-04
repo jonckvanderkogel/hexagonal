@@ -46,7 +46,7 @@ final class AuthorServiceImplTest {
     @Test
     void getById_happyPath_returnsAuthor() {
         var id = UUID.randomUUID();
-        var author = Author.rehydrate(id, "Arthur Dent");
+        var author = Author.rehydrate(id, "Arthur Dent").get();
         when(repo.findById(id))
                 .thenReturn(
                         Either.right(author)
