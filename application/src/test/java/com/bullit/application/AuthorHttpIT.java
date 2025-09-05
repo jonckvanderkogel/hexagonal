@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.github.springtestdbunit.DbUnitTestExecutionListener;
 import com.github.springtestdbunit.annotation.DatabaseSetup;
 import com.github.springtestdbunit.annotation.DbUnitConfiguration;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +17,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 @SpringBootTest(webEnvironment = RANDOM_PORT)
@@ -57,17 +57,17 @@ class AuthorHttpIT extends AbstractIntegrationTest {
         var createReq = Map.of("name", "Douglas Adams");
         ResponseEntity<AuthorJson> created = rest.postForEntity(base("/authors"), createReq, AuthorJson.class);
 
-        Assertions.assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        Assertions.assertThat(created.getBody()).isNotNull();
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(created.getBody()).isNotNull();
         var id = created.getBody().id;
-        Assertions.assertThat(created.getBody().name).isEqualTo("Douglas Adams");
+        assertThat(created.getBody().name).isEqualTo("Douglas Adams");
 
         // Get
         ResponseEntity<AuthorJson> got = rest.getForEntity(base("/authors/{id}"), AuthorJson.class, id);
-        Assertions.assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Assertions.assertThat(got.getBody()).isNotNull();
-        Assertions.assertThat(got.getBody().id).isEqualTo(id);
-        Assertions.assertThat(got.getBody().name).isEqualTo("Douglas Adams");
+        assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(got.getBody()).isNotNull();
+        assertThat(got.getBody().id).isEqualTo(id);
+        assertThat(got.getBody().name).isEqualTo("Douglas Adams");
     }
 
     @Test
@@ -75,10 +75,10 @@ class AuthorHttpIT extends AbstractIntegrationTest {
         var existingId = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
         ResponseEntity<AuthorJson> got = rest.getForEntity(base("/authors/{id}"), AuthorJson.class, existingId);
-        Assertions.assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
-        Assertions.assertThat(got.getBody()).isNotNull();
-        Assertions.assertThat(got.getBody().id).isEqualTo(existingId.toString());
-        Assertions.assertThat(got.getBody().name).isEqualTo("Preloaded Via DBUnit");
+        assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(got.getBody()).isNotNull();
+        assertThat(got.getBody().id).isEqualTo(existingId.toString());
+        assertThat(got.getBody().name).isEqualTo("Preloaded Via DBUnit");
     }
 
     @Test
@@ -86,9 +86,9 @@ class AuthorHttpIT extends AbstractIntegrationTest {
         var missing = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
         ResponseEntity<ErrorJson> res = rest.getForEntity(base("/authors/{id}"), ErrorJson.class, missing);
-        Assertions.assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        Assertions.assertThat(res.getBody()).isNotNull();
-        Assertions.assertThat(res.getBody().error).isNotBlank();
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(res.getBody()).isNotNull();
+        assertThat(res.getBody().error).isNotBlank();
     }
 
     @Test
@@ -100,8 +100,8 @@ class AuthorHttpIT extends AbstractIntegrationTest {
         ResponseEntity<ErrorJson> res =
                 rest.postForEntity(URI.create(base("/authors")), request, ErrorJson.class);
 
-        Assertions.assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        Assertions.assertThat(res.getBody()).isNotNull();
-        Assertions.assertThat(res.getBody().error).isNotBlank();
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(res.getBody()).isNotNull();
+        assertThat(res.getBody().error).isNotBlank();
     }
 }
