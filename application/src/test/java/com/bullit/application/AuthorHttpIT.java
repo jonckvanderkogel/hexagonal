@@ -53,7 +53,6 @@ class AuthorHttpIT extends AbstractIntegrationTest {
 
     @Test
     void create_then_get_by_id() {
-        // Create
         var createReq = Map.of("name", "Douglas Adams");
         ResponseEntity<AuthorJson> created = rest.postForEntity(base("/authors"), createReq, AuthorJson.class);
 

@@ -29,7 +29,6 @@ class AuthorServiceIT extends AbstractIntegrationTest {
 
     @Test
     void createAndFindAuthor() {
-        // create
         var created = authorServicePort.create("Douglas Adams");
         assertThat(created.isRight()).isTrue();
 
