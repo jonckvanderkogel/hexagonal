@@ -39,4 +39,13 @@ public class WebDependenciesTest {
                             "org.hibernate..",
                             "org.springframework.data.."
                     );
+
+    @ArchTest
+    static final ArchRule web_should_not_depend_on_spring_boot =
+            noClasses().that().resideInAnyPackage("com.bullit.web..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "org.springframework.boot..",           // all Boot APIs
+                            "org.springframework.boot.autoconfigure..",
+                            "org.springframework.boot.context.."
+                    );
 }
