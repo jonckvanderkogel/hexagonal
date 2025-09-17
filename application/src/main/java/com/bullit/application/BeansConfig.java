@@ -1,5 +1,6 @@
 package com.bullit.application;
 
+import com.bullit.core.usecase.LibraryServiceImpl;
 import com.bullit.data.adapter.AuthorRepositoryAdapter;
 import com.bullit.data.adapter.BookRepositoryAdapter;
 import com.bullit.data.persistence.AuthorJpaRepository;
@@ -7,11 +8,8 @@ import com.bullit.data.persistence.BookJpaRepository;
 import com.bullit.domain.port.AuthorRepositoryPort;
 import com.bullit.domain.port.BookRepositoryPort;
 import com.bullit.domain.port.LibraryServicePort;
-import com.bullit.core.usecase.LibraryServiceImpl;
 import com.bullit.web.AuthorHttpHandler;
 import com.bullit.web.HttpErrorFilter;
-import jakarta.validation.Validator;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.function.HandlerFilterFunction;
@@ -26,7 +24,7 @@ public class BeansConfig {
 
     @Bean
     public Clock clock() {
-        return Clock.systemDefaultZone();
+        return Clock.systemUTC();
     }
 
     @Bean
@@ -49,8 +47,8 @@ public class BeansConfig {
     }
 
     @Bean
-    public AuthorHttpHandler authorHttpHandler(LibraryServicePort libraryServicePort, Validator validator) {
-        return new AuthorHttpHandler(libraryServicePort, validator);
+    public AuthorHttpHandler authorHttpHandler(LibraryServicePort libraryServicePort) {
+        return new AuthorHttpHandler(libraryServicePort);
     }
 
     @Bean

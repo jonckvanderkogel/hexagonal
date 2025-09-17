@@ -91,7 +91,7 @@ HTTP/1.1 404 Not Found
 Content-Type: application/json
 
 {
-  "error": "Author 1a2b3c4d-5678-90ab-cdef-1234567890ab not found"
+  "error": "Invalid resource identifier: Author 1a2b3c4d-5678-90ab-cdef-1234567890ab not found"
 }
 ```
 

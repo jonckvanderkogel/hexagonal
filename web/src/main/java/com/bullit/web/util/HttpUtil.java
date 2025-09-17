@@ -12,7 +12,7 @@ public class HttpUtil {
     private HttpUtil() {
     }
 
-    public static <T> T parseAndValidateBody(ServerRequest req, Class<T> clazz, Validator validator) throws ServletException, IOException {
+    public static <T> T parseAndValidateBody(ServerRequest req, Class<T> clazz) throws ServletException, IOException {
         var body = req.body(clazz);
         return DomainValidator.assertValid(body);
     }

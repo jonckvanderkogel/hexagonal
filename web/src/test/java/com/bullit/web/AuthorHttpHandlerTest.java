@@ -3,8 +3,6 @@ package com.bullit.web;
 import com.bullit.domain.error.NotFoundException;
 import com.bullit.domain.model.Author;
 import com.bullit.domain.port.LibraryServicePort;
-import jakarta.validation.Validation;
-import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -32,7 +30,6 @@ import static org.mockito.Mockito.when;
 
 final class AuthorHttpHandlerTest {
     private final LibraryServicePort service = mock(LibraryServicePort.class);
-    private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
     private AuthorHttpHandler handler;
     private List<HttpMessageConverter<?>> converters;
@@ -40,7 +37,7 @@ final class AuthorHttpHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = new AuthorHttpHandler(service, validator);
+        handler = new AuthorHttpHandler(service);
         converters = List.of(new MappingJackson2HttpMessageConverter());
         errorFilter = new HttpErrorFilter();
     }

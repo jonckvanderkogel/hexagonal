@@ -18,7 +18,7 @@ public final class Book {
     @NotNull(message = "Author id is required")
     private final UUID authorId;
 
-    @Size(max = 100, message = "Book title can be 200 characters at most")
+    @Size(max = 200, message = "Book title can be 200 characters at most")
     @NotBlank(message = "Book title is required")
     private final String title;
 
