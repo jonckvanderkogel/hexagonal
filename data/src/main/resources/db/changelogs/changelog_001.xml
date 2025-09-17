@@ -2,17 +2,53 @@
 <databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.27.xsd">
-    <changeSet id="1" author="jonck">
+    <changeSet id="1-authors" author="jonck">
         <createTable tableName="authors">
             <column name="id" type="UUID">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="name" type="TEXT">
+            <column name="first_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="inserted_at" type="TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
         </createTable>
-        <createIndex indexName="idx_authors_name" tableName="authors">
-            <column name="name"/>
+        <createIndex indexName="idx_authors_last_name" tableName="authors">
+            <column name="last_name"/>
+        </createIndex>
+        <createIndex indexName="idx_authors_inserted_at" tableName="authors">
+            <column name="inserted_at"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="2-books" author="jonck">
+        <createTable tableName="books">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="author_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_books_author"
+                             referencedTableName="authors" referencedColumnNames="id"/>
+            </column>
+            <column name="title" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="inserted_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex indexName="idx_books_author" tableName="books">
+            <column name="author_id"/>
+        </createIndex>
+        <createIndex indexName="idx_books_title" tableName="books">
+            <column name="title"/>
+        </createIndex>
+        <createIndex indexName="idx_books_inserted_at" tableName="books">
+            <column name="inserted_at"/>
         </createIndex>
     </changeSet>
 </databaseChangeLog>

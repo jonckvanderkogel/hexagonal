@@ -1,18 +1,23 @@
 package com.bullit.web.util;
 
-import com.bullit.domain.error.AppError;
-import com.bullit.domain.error.ValidationError;
-import io.vavr.control.Either;
-import io.vavr.control.Try;
+import com.bullit.domain.model.DomainValidator;
+import jakarta.servlet.ServletException;
+import jakarta.validation.Validator;
 import org.springframework.web.servlet.function.ServerRequest;
+
+import java.io.IOException;
+import java.util.UUID;
 
 public class HttpUtil {
     private HttpUtil() {
     }
 
-    public static <T> Either<AppError, T> parseRequestBody(ServerRequest request, Class<T> clazz) {
-        return Try.of(() -> request.body(clazz))
-                .toEither()
-                .mapLeft(ex -> new ValidationError.MalformedRequestError("Invalid request body"));
+    public static <T> T parseAndValidateBody(ServerRequest req, Class<T> clazz, Validator validator) throws ServletException, IOException {
+        var body = req.body(clazz);
+        return DomainValidator.assertValid(body);
+    }
+
+    public static UUID parseUuid(String raw) {
+        return UUID.fromString(raw);
     }
 }

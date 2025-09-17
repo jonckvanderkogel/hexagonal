@@ -7,13 +7,25 @@ import com.github.springtestdbunit.annotation.DbUnitConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.http.*;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestExecutionListeners;
 
 import java.net.URI;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
 
@@ -23,11 +35,12 @@ import static org.springframework.boot.test.context.SpringBootTest.WebEnvironmen
 @SpringBootTest(webEnvironment = RANDOM_PORT)
 @DirtiesContext
 @TestExecutionListeners(
-        value = { DbUnitTestExecutionListener.class },
+        value = {DbUnitTestExecutionListener.class},
         mergeMode = TestExecutionListeners.MergeMode.MERGE_WITH_DEFAULTS
 )
 @DbUnitConfiguration
 @DatabaseSetup("/dbunit/authorHttpDataset.xml")
+@Import(AuthorHttpIT.TestConfig.class)
 class AuthorHttpIT extends AbstractIntegrationTest {
 
     @LocalServerPort
@@ -43,7 +56,9 @@ class AuthorHttpIT extends AbstractIntegrationTest {
     @JsonIgnoreProperties(ignoreUnknown = true)
     static final class AuthorJson {
         public String id;
-        public String name;
+        public String firstName;
+        public String lastName;
+        public Instant insertedAt;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -53,20 +68,27 @@ class AuthorHttpIT extends AbstractIntegrationTest {
 
     @Test
     void create_then_get_by_id() {
-        var createReq = Map.of("name", "Douglas Adams");
+        var createReq = Map.of("firstName", "Douglas", "lastName", "Adams");
         ResponseEntity<AuthorJson> created = rest.postForEntity(base("/authors"), createReq, AuthorJson.class);
 
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(created.getBody()).isNotNull();
         var id = created.getBody().id;
-        assertThat(created.getBody().name).isEqualTo("Douglas Adams");
+        assertThat(created.getBody().firstName).isEqualTo("Douglas");
+        assertThat(created.getBody().lastName).isEqualTo("Adams");
 
-        // Get
         ResponseEntity<AuthorJson> got = rest.getForEntity(base("/authors/{id}"), AuthorJson.class, id);
         assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(got.getBody()).isNotNull();
+
         assertThat(got.getBody().id).isEqualTo(id);
-        assertThat(got.getBody().name).isEqualTo("Douglas Adams");
+        assertThat(got.getBody().firstName).isEqualTo("Douglas");
+        assertThat(got.getBody().lastName).isEqualTo("Adams");
+        assertThat(got.getBody().insertedAt)
+                .isEqualTo(
+                        LocalDateTime.of(2024, 8, 13, 9, 0, 0)
+                                .toInstant(ZoneOffset.UTC)
+                );
     }
 
     @Test
@@ -77,7 +99,13 @@ class AuthorHttpIT extends AbstractIntegrationTest {
         assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(got.getBody()).isNotNull();
         assertThat(got.getBody().id).isEqualTo(existingId.toString());
-        assertThat(got.getBody().name).isEqualTo("Preloaded Via DBUnit");
+        assertThat(got.getBody().firstName).isEqualTo("Preloaded");
+        assertThat(got.getBody().lastName).isEqualTo("ViaDBUnit");
+        assertThat(got.getBody().insertedAt)
+                .isEqualTo(
+                        LocalDateTime.of(2024, 1, 1, 0, 0, 0)
+                                .toInstant(ZoneOffset.UTC)
+                );
     }
 
     @Test
@@ -91,10 +119,10 @@ class AuthorHttpIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void create_with_empty_name_returns_400() {
+    void create_with_empty_names_returns_400() {
         var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        var request = new HttpEntity<>(Map.of("name", ""), headers);
+        var request = new HttpEntity<>(Map.of("firstName", "", "lastName", ""), headers);
 
         ResponseEntity<ErrorJson> res =
                 rest.postForEntity(URI.create(base("/authors")), request, ErrorJson.class);
@@ -102,5 +130,19 @@ class AuthorHttpIT extends AbstractIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(res.getBody()).isNotNull();
         assertThat(res.getBody().error).isNotBlank();
+    }
+
+    @TestConfiguration
+    static class TestConfig {
+        @Bean
+        @Primary
+        public Clock clock() {
+            return Clock
+                    .fixed(
+                            LocalDateTime.of(2024, 8, 13, 9, 0, 0)
+                                    .toInstant(ZoneOffset.UTC),
+                            ZoneOffset.UTC
+                    );
+        }
     }
 }

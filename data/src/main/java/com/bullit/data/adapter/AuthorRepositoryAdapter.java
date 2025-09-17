@@ -1,21 +1,14 @@
 package com.bullit.data.adapter;
 
 import com.bullit.data.persistence.AuthorEntity;
-import com.bullit.domain.model.Author;
-import com.bullit.domain.error.AppError;
-import com.bullit.domain.error.NotFoundError.AuthorNotFoundError;
-import com.bullit.domain.error.PersistenceError.AuthorPersistenceError;
-import com.bullit.domain.port.AuthorRepositoryPort;
-import com.bullit.data.persistence.AuthorDataMapper;
 import com.bullit.data.persistence.AuthorJpaRepository;
-import io.vavr.control.Either;
-import io.vavr.control.Try;
+import com.bullit.domain.error.NotFoundException;
+import com.bullit.domain.error.PersistenceException;
+import com.bullit.domain.model.Author;
+import com.bullit.domain.port.AuthorRepositoryPort;
+import org.springframework.dao.DataAccessException;
 
-import java.util.Optional;
 import java.util.UUID;
-
-import static com.bullit.domain.util.EitherUtils.widenLeft;
-import static io.vavr.control.Either.left;
 
 public class AuthorRepositoryAdapter implements AuthorRepositoryPort {
 
@@ -26,24 +19,23 @@ public class AuthorRepositoryAdapter implements AuthorRepositoryPort {
     }
 
     @Override
-    public Either<AppError, Author> save(Author author) {
-        return fromDb(Try.of(() -> repo.save(new AuthorEntity(author.id(), author.name()))))
-                .flatMap(e -> widenLeft(AuthorDataMapper.toDomain(e)));
+    public Author save(Author author) {
+        try {
+            AuthorEntity saved = repo.save(AuthorEntity.toEntity(author));
+            return AuthorEntity.toDomain(saved);
+        } catch (DataAccessException ex) {
+            throw new PersistenceException("DB error during save of author: %s".formatted(ex.getMessage()), ex);
+        }
     }
 
     @Override
-    public Either<AppError, Author> findById(UUID id) {
-        return fromDb(Try.of(() -> repo.findById(id)))
-                .flatMap(opt -> fromOptional(opt, id));
-    }
-
-    private <T> Either<AppError, T> fromDb(Try<T> t) {
-        return t.toEither()
-                .mapLeft(ex -> new AuthorPersistenceError(ex.getMessage()));
-    }
-
-    private Either<AppError, Author> fromOptional(Optional<AuthorEntity> opt, UUID id) {
-        return opt.map(v -> widenLeft(AuthorDataMapper.toDomain(v)))
-                .orElseGet(() -> left(new AuthorNotFoundError("Author %s not found".formatted(id))));
+    public Author findById(UUID id) {
+        try {
+            var entity = repo.findById(id)
+                    .orElseThrow(() -> new NotFoundException("Author %s not found".formatted(id)));
+            return AuthorEntity.toDomain(entity);
+        } catch (DataAccessException ex) {
+            throw new PersistenceException("DB error during findById: %s".formatted(ex.getMessage()), ex);
+        }
     }
 }

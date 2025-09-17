@@ -21,8 +21,10 @@
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<java.version>24</java.version>
 		<spring-boot.version>3.5.5</spring-boot.version>
-		<vavr.version>0.10.7</vavr.version>
 		<archunit.version>1.4.1</archunit.version>
+		<validation.api.version>3.1.1</validation.api.version>
+		<hibernate.validator.version>8.0.3.Final</hibernate.validator.version>
+		<glassfish.el.version>4.0.2</glassfish.el.version>
 	</properties>
 
 	<dependencyManagement>
@@ -33,6 +35,21 @@
 				<version>${spring-boot.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>jakarta.validation</groupId>
+				<artifactId>jakarta.validation-api</artifactId>
+				<version>${validation.api.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.hibernate.validator</groupId>
+				<artifactId>hibernate-validator</artifactId>
+				<version>${hibernate.validator.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.glassfish</groupId>
+				<artifactId>jakarta.el</artifactId>
+				<version>${glassfish.el.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>com.tngtech.archunit</groupId>

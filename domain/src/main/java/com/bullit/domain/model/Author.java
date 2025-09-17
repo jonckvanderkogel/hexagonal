@@ -1,70 +1,103 @@
 package com.bullit.domain.model;
 
-import com.bullit.domain.error.ValidationError;
-import com.bullit.domain.error.ValidationError.AuthorValidationError;
-import io.vavr.control.Either;
-import io.vavr.control.Validation;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.Size;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
-import static com.bullit.domain.util.ErrorUtils.collapseErrors;
+import static com.bullit.domain.model.DomainValidator.assertValid;
+import static java.util.Collections.emptyList;
 
 public final class Author {
+    @NotNull(message = "Author id is required")
     private final UUID id;
-    private final String name;
 
-    private Author(UUID id, String name) {
+    @Size(max = 100, message = "Author first name can be 100 characters at most")
+    @NotBlank(message = "Author first name is required")
+    private final String firstName;
+
+    @Size(max = 100, message = "Author last name can be 100 characters at most")
+    @NotBlank(message = "Author last name is required")
+    private final String lastName;
+
+    @NotNull(message = "List of books can be empty but must not be null")
+    private final List<Book> books;
+
+    @NotNull
+    @PastOrPresent(message = "InsertedAt is required, and must be in the past or present")
+    private final Instant insertedAt;
+
+    private Author(UUID id, String firstName, String lastName, List<Book> books, Instant insertedAt) {
         this.id = id;
-        this.name = name;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.books = books;
+        this.insertedAt = insertedAt;
     }
 
-    public UUID id() { return id; }
-    public String name() { return name; }
-
-    public static Either<ValidationError, Author> createNew(String rawName) {
-        return validateName(rawName, 100)
-                .map(name -> new Author(UUID.randomUUID(), name))
-                .toEither();
+    public UUID getId() {
+        return id;
     }
 
-    public static Either<ValidationError, Author> rehydrate(UUID id, String rawName) {
-        return validateRehydration(id, rawName)
-                .toEither();
+    public String getFirstName() {
+        return firstName;
     }
 
-    private static Validation<ValidationError, Author> validateRehydration(UUID id, String rawName) {
-        return Validation.combine(
-                        validateId(id),
-                        validateName(rawName, 100)
-                )
-                .ap(Author::new)
-                .mapError( errs -> collapseErrors(errs, AuthorValidationError::new));
+    public String getLastName() {
+        return lastName;
     }
 
-    private static Validation<ValidationError, UUID> validateId(UUID id) {
-        return (id != null)
-                ? Validation.valid(id)
-                : Validation.invalid(new AuthorValidationError("Id cannot be null"));
+    public List<Book> getBooks() {
+        return books;
     }
 
-    private static Validation<ValidationError, String> validateName(String raw, int maxLength) {
-        return Validation.combine(
-                        notBlank(raw, "Name is required"),
-                        maxLength(raw, maxLength, "Name must be ≤ " + maxLength + " characters")
-                )
-                .ap((__1, __2) -> raw.trim())
-                .mapError(errs -> collapseErrors(errs, AuthorValidationError::new));
+    public Instant getInsertedAt() {
+        return insertedAt;
     }
 
-    private static Validation<ValidationError, String> notBlank(String value, String message) {
-        return (value != null && !value.isBlank())
-                ? Validation.valid(value)
-                : Validation.invalid(new AuthorValidationError(message));
+    public static Author createNew(String firstName,
+                                   String lastName,
+                                   Clock clock
+    ) {
+        return createNew(
+                firstName,
+                lastName,
+                emptyList(),
+                clock
+        );
     }
 
-    private static Validation<ValidationError, String> maxLength(String value, int max, String message) {
-        return (value != null && value.trim().length() <= max)
-                ? Validation.valid(value)
-                : Validation.invalid(new AuthorValidationError(message));
+    public static Author createNew(String firstName,
+                                   String lastName,
+                                   List<Book> books,
+                                   Clock clock
+    ) {
+        return assertValid(new Author(
+                UUID.randomUUID(),
+                firstName,
+                lastName,
+                books,
+                clock.instant()
+        ));
+    }
+
+    public static Author rehydrate(UUID id,
+                                   String firstName,
+                                   String lastName,
+                                   List<Book> books,
+                                   Instant insertedAt
+    ) {
+        return assertValid(new Author(
+                id,
+                firstName,
+                lastName,
+                books,
+                insertedAt
+        ));
     }
 }

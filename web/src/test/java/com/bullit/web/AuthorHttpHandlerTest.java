@@ -1,11 +1,10 @@
 package com.bullit.web;
 
-import com.bullit.domain.error.NotFoundError;
-import com.bullit.domain.error.PersistenceError;
-import com.bullit.domain.error.ValidationError;
+import com.bullit.domain.error.NotFoundException;
 import com.bullit.domain.model.Author;
-import com.bullit.domain.port.AuthorServicePort;
-import io.vavr.control.Either;
+import com.bullit.domain.port.LibraryServicePort;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -13,15 +12,18 @@ import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.web.servlet.function.HandlerFilterFunction;
 import org.springframework.web.servlet.function.RouterFunctions;
 import org.springframework.web.servlet.function.ServerRequest;
 import org.springframework.web.servlet.function.ServerResponse;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static java.util.Collections.emptyList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -29,97 +31,91 @@ import static org.mockito.Mockito.when;
 
 
 final class AuthorHttpHandlerTest {
+    private final LibraryServicePort service = mock(LibraryServicePort.class);
+    private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
-    private final AuthorServicePort authorServicePort = mock(AuthorServicePort.class);
     private AuthorHttpHandler handler;
     private List<HttpMessageConverter<?>> converters;
+    private HandlerFilterFunction<ServerResponse, ServerResponse> errorFilter;
 
     @BeforeEach
     void setUp() {
-        handler = new AuthorHttpHandler(authorServicePort);
+        handler = new AuthorHttpHandler(service, validator);
         converters = List.of(new MappingJackson2HttpMessageConverter());
+        errorFilter = new HttpErrorFilter();
     }
 
     @Test
     void create_returns201_with_payload() throws Exception {
         var id = UUID.randomUUID();
-        when(authorServicePort.create("Douglas Adams"))
-                .thenReturn(Either.right(Author.rehydrate(id, "Douglas Adams").get()));
+        when(service.createAuthor("Douglas", "Adams"))
+                .thenReturn(Author.rehydrate(id, "Douglas", "Adams", emptyList(), Instant.parse("2024-01-01T00:00:00Z")));
 
-        var req = postJson("/authors", "{\"name\":\"Douglas Adams\"}");
-        var res = handler.create(req);
+        var req = postJson("/authors", """
+                {"firstName":"Douglas","lastName":"Adams"}
+                """);
+        var res = errorFilter.filter(req, handler::createAuthor);
 
         var body = writeToString(res);
         assertThat(status(res)).isEqualTo(201);
         assertThat(body).contains("\"id\":\"" + id + "\"");
-        assertThat(body).contains("\"name\":\"Douglas Adams\"");
+        assertThat(body).contains("\"firstName\":\"Douglas\"");
+        assertThat(body).contains("\"lastName\":\"Adams\"");
     }
 
     @Test
-    void create_validationError_returns400() throws Exception {
-        when(authorServicePort.create(""))
-                .thenReturn(Either.left(new ValidationError.AuthorValidationError("Name is required")));
+    void create_validationError_returns400_via_filter() throws Exception {
+        var req = postJson("/authors", """
+                {"firstName":"","lastName":""}
+                """);
 
-        var req = postJson("/authors", "{\"name\":\"\"}");
-        var res = handler.create(req);
+        var res = errorFilter.filter(req, handler::createAuthor);
 
         var body = writeToString(res);
         assertThat(status(res)).isEqualTo(400);
-        assertThat(body).contains("\"error\":\"Name is required\"");
+        assertThat(body).contains("\"error\":\"Invalid request:");
+        verifyNoInteractions(service);
     }
 
     @Test
-    void create_malformedJson_returns400_and_does_not_call_service() throws Exception {
-        var req = postJson("/authors", "{\"name\":"); // malformed JSON
-        var res = handler.create(req);
+    void create_malformedJson_returns_500_unexpected_via_filter() throws Exception {
+        var req = postJson("/authors", "{\"firstName\":"); // malformed JSON
+
+        var res = errorFilter.filter(req, handler::createAuthor);
 
         var body = writeToString(res);
-        assertThat(status(res)).isEqualTo(400);
-        assertThat(body).contains("\"error\":\"Invalid request body\"");
-        verifyNoInteractions(authorServicePort);
+        assertThat(status(res)).isEqualTo(500);
+        assertThat(body).contains("\"error\":\"Unexpected error\"");
+        verifyNoInteractions(service);
     }
 
     @Test
     void getById_ok_returns200() throws Exception {
         var id = UUID.randomUUID();
-        when(authorServicePort.getById(id))
-                .thenReturn(Either.right(Author.rehydrate(id, "Arthur Dent").get()));
+        when(service.getById(id))
+                .thenReturn(Author.rehydrate(id, "Arthur", "Dent", emptyList(), Instant.parse("2024-01-01T00:00:00Z")));
 
         var req = getRequestWithId(id);
-        var res = handler.getById(req);
+        var res = errorFilter.filter(req, handler::getAuthorById);
 
         var body = writeToString(res);
         assertThat(status(res)).isEqualTo(200);
         assertThat(body).contains("\"id\":\"" + id + "\"");
-        assertThat(body).contains("\"name\":\"Arthur Dent\"");
+        assertThat(body).contains("\"firstName\":\"Arthur\"");
+        assertThat(body).contains("\"lastName\":\"Dent\"");
     }
 
     @Test
-    void getById_notFound_returns404() throws Exception {
+    void getById_notFound_returns404_via_filter() throws Exception {
         var id = UUID.randomUUID();
-        when(authorServicePort.getById(id))
-                .thenReturn(Either.left(new NotFoundError.AuthorNotFoundError("not found")));
+        when(service.getById(id)).thenThrow(new NotFoundException("not found"));
 
         var req = getRequestWithId(id);
-        var res = handler.getById(req);
+        var res = errorFilter.filter(req, handler::getAuthorById);
 
         var body = writeToString(res);
         assertThat(status(res)).isEqualTo(404);
-        assertThat(body).contains("\"error\":\"not found\"");
-    }
-
-    @Test
-    void getById_persistenceError_returns500() throws Exception {
-        var id = UUID.randomUUID();
-        when(authorServicePort.getById(id))
-                .thenReturn(Either.left(new PersistenceError.AuthorPersistenceError("db down")));
-
-        var req = getRequestWithId(id);
-        var res = handler.getById(req);
-
-        var body = writeToString(res);
-        assertThat(status(res)).isEqualTo(500);
-        assertThat(body).contains("\"error\":\"db down\"");
+        assertThat(body).contains("\"error\":\"Invalid resource identifier: not found\"");
     }
 
     private ServerRequest postJson(String path, String json) {
@@ -145,9 +141,7 @@ final class AuthorHttpHandlerTest {
     private String writeToString(ServerResponse response) throws Exception {
         var servletReq = new MockHttpServletRequest();
         var servletRes = new MockHttpServletResponse();
-
         ServerResponse.Context context = () -> converters;
-
         response.writeTo(servletReq, servletRes, context);
         return servletRes.getContentAsString();
     }

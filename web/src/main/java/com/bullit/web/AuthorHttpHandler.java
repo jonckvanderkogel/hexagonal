@@ -1,65 +1,53 @@
 package com.bullit.web;
 
-import com.bullit.domain.error.AppError;
-import com.bullit.domain.error.NotFoundError;
-import com.bullit.domain.error.PersistenceError;
-import com.bullit.domain.error.ValidationError;
-import com.bullit.domain.model.Author;
-import com.bullit.domain.port.AuthorServicePort;
-import io.vavr.control.Either;
-import io.vavr.control.Try;
+import com.bullit.domain.port.LibraryServicePort;
+import com.bullit.web.Request.AddBookRequest;
+import com.bullit.web.Request.CreateAuthorRequest;
+import com.bullit.web.Response.AuthorResponse;
+import com.bullit.web.Response.BookResponse;
+import jakarta.servlet.ServletException;
+import jakarta.validation.Validator;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.servlet.function.ServerRequest;
 import org.springframework.web.servlet.function.ServerResponse;
 
-import java.util.UUID;
+import java.io.IOException;
 
-import static com.bullit.web.util.HttpUtil.parseRequestBody;
+import static com.bullit.web.util.HttpUtil.parseAndValidateBody;
+import static com.bullit.web.util.HttpUtil.parseUuid;
 
 public final class AuthorHttpHandler {
 
-    private final AuthorServicePort authorServicePort;
+    private final LibraryServicePort service;
+    private final Validator validator;
 
-    public AuthorHttpHandler(AuthorServicePort authorServicePort) {
-        this.authorServicePort = authorServicePort;
+    public AuthorHttpHandler(LibraryServicePort service, Validator validator) {
+        this.service = service;
+        this.validator = validator;
     }
 
-    public ServerResponse create(ServerRequest request) {
-        return parseRequestBody(request, CreateAuthorRequest.class)
-                .flatMap(body -> authorServicePort.create(body.name()))
-                .fold(this::toError, this::toCreated);
+    public ServerResponse createAuthor(ServerRequest request) throws ServletException, IOException {
+        var dto = parseAndValidateBody(request, CreateAuthorRequest.class, validator);
+        var created = service.createAuthor(dto.firstName().trim(), dto.lastName().trim());
+        return ServerResponse
+                .status(HttpStatus.CREATED)
+                .body(AuthorResponse.fromDomain(created));
     }
 
-    public ServerResponse getById(ServerRequest req) {
-        return parseUuid(req.pathVariable("id"))
-                .flatMap(authorServicePort::getById)
-                .fold(this::toError, this::toOk);
+    public ServerResponse addBookToAuthor(ServerRequest request) throws ServletException, IOException {
+        var id = parseUuid(request.pathVariable("id"));
+        var dto = parseAndValidateBody(request, AddBookRequest.class, validator);
+        var created = service.addBook(id, dto.title().trim());
+        return ServerResponse
+                .ok()
+                .body(BookResponse.fromDomain(created));
     }
 
-    private Either<AppError, UUID> parseUuid(String raw) {
-        return Try.of(() -> UUID.fromString(raw))
-                .toEither()
-                .mapLeft(_ -> new ValidationError.MalformedRequestError("Invalid UUID: " + raw));
-    }
-
-    private ServerResponse toCreated(Author a) {
-        return ServerResponse.status(HttpStatus.CREATED)
-                .body(new AuthorResponse(a.id().toString(), a.name()));
-    }
-
-    private ServerResponse toOk(Author a) {
-        return ServerResponse.ok()
-                .body(new AuthorResponse(a.id().toString(), a.name()));
-    }
-
-    private ServerResponse toError(AppError error) {
-        return switch (error) {
-            case ValidationError e ->
-                    ServerResponse.status(HttpStatus.BAD_REQUEST).body(new ErrorResponse(e.message()));
-            case NotFoundError e ->
-                    ServerResponse.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(e.message()));
-            case PersistenceError e ->
-                    ServerResponse.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ErrorResponse(e.message()));
-        };
+    public ServerResponse getAuthorById(ServerRequest request) {
+        var id = parseUuid(request.pathVariable("id"));
+        var author = service.getById(id);
+        return ServerResponse
+                .ok()
+                .body(AuthorResponse.fromDomain(author));
     }
 }

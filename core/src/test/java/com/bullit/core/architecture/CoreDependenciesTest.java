@@ -45,11 +45,10 @@ public class CoreDependenciesTest {
     static final ArchRule core_should_depend_on_domain_only_for_project_code =
             noClasses().that().resideInAnyPackage("com.bullit.core..")
                     .should().dependOnClassesThat().resideOutsideOfPackages(
-                            // allow domain + JDK + Vavr; block other project packages
+                            // allow domain + JDK; block other project packages
                             "com.bullit.domain..",
                             "java..",
                             "javax..",
-                            "jakarta..",
-                            "io.vavr.."
+                            "jakarta.."
                     );
 }
