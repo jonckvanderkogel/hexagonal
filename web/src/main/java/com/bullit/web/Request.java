@@ -5,11 +5,17 @@ import jakarta.validation.constraints.Size;
 
 public class Request {
     public record AddBookRequest(
-            @NotBlank @Size(max = 200) String title
+            @Size(max = 100, message = "Book title can be 200 characters at most")
+            @NotBlank(message = "Book title is required")
+            String title
     ) {}
 
     public record CreateAuthorRequest(
-            @NotBlank @Size(max = 100) String firstName,
-            @NotBlank @Size(max = 100) String lastName
+            @Size(max = 100, message = "Author first name can be 100 characters at most")
+            @NotBlank(message = "Author first name is required")
+            String firstName,
+            @Size(max = 100, message = "Author last name can be 100 characters at most")
+            @NotBlank(message = "Author last name is required")
+            String lastName
     ) {}
 }

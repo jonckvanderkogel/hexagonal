@@ -19,7 +19,10 @@ Create author:
 ```bash
 curl -i -X POST http://localhost:8080/authors \
   -H "Content-Type: application/json" \
-  -d '{"name": "Douglas Adams"}'
+  -d '{
+        "firstName": "Douglas",
+        "lastName": "Adams"
+      }'
 ```
 
 Expected response:
@@ -29,7 +32,10 @@ Content-Type: application/json
 
 {
   "id": "1a2b3c4d-5678-90ab-cdef-1234567890ab",
-  "name": "Douglas Adams"
+  "firstName": "Douglas",
+  "lastName": "Adams",
+  "books": [],
+  "insertedAt": "2024-08-13T09:00:00Z"
 }
 ```
 
@@ -37,7 +43,10 @@ Passing an invalid name:
 ```bash
 curl -i -X POST http://localhost:8080/authors \
   -H "Content-Type: application/json" \
-  -d '{"name": ""}'
+  -d '{
+        "firstName": "",
+        "lastName": ""
+      }'
 ```
 
 Expected response:
@@ -46,7 +55,7 @@ HTTP/1.1 400 Bad Request
 Content-Type: application/json
 
 {
-  "error": "Name is required"
+  "error":"Invalid request: Author first name is required; Author last name is required"
 }
 ```
 
@@ -62,7 +71,17 @@ Content-Type: application/json
 
 {
   "id": "1a2b3c4d-5678-90ab-cdef-1234567890ab",
-  "name": "Douglas Adams"
+  "firstName": "Douglas",
+  "lastName": "Adams",
+  "books": [
+    {
+      "id": "9f8e7d6c-5432-10fe-dcba-0987654321ab",
+      "authorId": "1a2b3c4d-5678-90ab-cdef-1234567890ab",
+      "title": "The Hitchhiker's Guide to the Galaxy",
+      "insertedAt": "2024-08-13T09:05:00Z"
+    }
+  ],
+  "insertedAt": "2024-08-13T09:00:00Z"
 }
 ```
 
@@ -83,5 +102,27 @@ Content-Type: application/json
 
 {
   "error": "Database unavailable"
+}
+```
+
+Add a book to an author:
+```
+curl -i -X POST http://localhost:8080/authors/1a2b3c4d-5678-90ab-cdef-1234567890ab/books \
+  -H "Content-Type: application/json" \
+  -d '{
+        "title": "The Hitchhiker'\''s Guide to the Galaxy"
+      }'
+```
+
+Expected response:
+```
+HTTP/1.1 201 Created
+Content-Type: application/json
+
+{
+  "id": "9f8e7d6c-5432-10fe-dcba-0987654321ab",
+  "authorId": "1a2b3c4d-5678-90ab-cdef-1234567890ab",
+  "title": "The Hitchhiker's Guide to the Galaxy",
+  "insertedAt": "2024-08-13T09:05:00Z"
 }
 ```
