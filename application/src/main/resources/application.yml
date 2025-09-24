@@ -15,6 +15,7 @@ spring:
   liquibase:
     enabled: true
     change-log: classpath:db/changelog.xml
+    contexts: seed
 
 logging:
   level:

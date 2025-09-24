@@ -42,11 +42,11 @@ public class CoreDependenciesTest {
                     );
 
     @ArchTest
-    static final ArchRule core_should_depend_on_domain_only_for_project_code =
+    static final ArchRule core_should_depend_only_on_domain_or_itself_for_project_code =
             noClasses().that().resideInAnyPackage("com.bullit.core..")
                     .should().dependOnClassesThat().resideOutsideOfPackages(
-                            // allow domain + JDK; block other project packages
                             "com.bullit.domain..",
+                            "com.bullit.core..",   // ← allow core to depend on itself
                             "java..",
                             "javax..",
                             "jakarta.."

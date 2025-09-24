@@ -1,8 +1,8 @@
 package com.bullit.application;
 
-import com.bullit.web.Response.AuthorResponse;
-import com.bullit.web.Response.BookResponse;
-import com.bullit.web.Response.ErrorResponse;
+import com.bullit.web.adapter.driving.http.Response.AuthorResponse;
+import com.bullit.web.adapter.driving.http.Response.BookResponse;
+import com.bullit.web.adapter.driving.http.Response.ErrorResponse;
 import com.github.springtestdbunit.DbUnitTestExecutionListener;
 import com.github.springtestdbunit.annotation.DatabaseSetup;
 import com.github.springtestdbunit.annotation.DbUnitConfiguration;

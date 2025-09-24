@@ -126,3 +126,61 @@ Content-Type: application/json
   "insertedAt": "2024-08-13T09:05:00Z"
 }
 ```
+
+Fetch monthly royalty report for an author:
+```
+curl -i http://localhost:8080/authors/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/royalties/2024-02
+```
+
+Expected response:
+```
+HTTP/1.1 200
+Content-Type: application/json
+Transfer-Encoding: chunked
+
+{
+  "authorId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "period": "2024-02",
+  "totalUnits": 4375,
+  "grossRevenue": 48245.25,
+  "effectiveRate": 0.160000,
+  "royaltyDue": 7719.24000000,
+  "minimumGuarantee": 100,
+  "breakdown": [
+    {
+      "unitsInTier": 1000,
+      "appliedRate": 0.1,
+      "royaltyAmount": 1102.74857143
+    },
+    {
+      "unitsInTier": 1500,
+      "appliedRate": 0.15,
+      "royaltyAmount": 2481.18428571
+    },
+    {
+      "unitsInTier": 1875,
+      "appliedRate": 0.2,
+      "royaltyAmount": 4135.30714286
+    },
+    {
+      "unitsInTier": 0,
+      "appliedRate": 0.25,
+      "royaltyAmount": 0.0000
+    }
+  ]
+}
+```
+
+For a non-existent author:
+```
+curl -i http://localhost:8080/authors/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab/royalties/2024-02
+```
+
+The expected response is:
+```
+HTTP/1.1 404
+Content-Type: application/json
+Transfer-Encoding: chunked
+
+{"error":"Invalid resource identifier: Author aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab not found"}
+```

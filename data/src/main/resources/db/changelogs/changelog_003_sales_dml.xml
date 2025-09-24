@@ -1,0 +1,69 @@
+<?xml version="1.1" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.27.xsd">
+
+    <changeSet id="ext-uuid-ossp" author="jonck">
+        <sql>CREATE EXTENSION IF NOT EXISTS "uuid-ossp";</sql>
+    </changeSet>
+
+    <changeSet id="sales-2024-seed" author="jonck" context="seed">
+        <sql>
+            WITH days AS (
+                SELECT gs::date AS d
+                FROM generate_series(date '2024-01-01', date '2024-12-31', interval '1 day') gs
+            ),
+            daily_books AS (
+                -- Pick up to 6 books per day (rotate the window a bit by month to vary distribution)
+                SELECT
+                    d.d AS day,
+                    b.id AS book_id,
+                    row_number() OVER (PARTITION BY d.d ORDER BY b.id) AS rn
+                FROM days d
+                JOIN LATERAL (
+                    SELECT id
+                    FROM books
+                    ORDER BY id
+                    LIMIT 6
+                ) b ON TRUE
+            )
+            INSERT INTO sales (id, book_id, units, amount_eur, sold_at)
+            SELECT
+                uuid_generate_v4(),
+                db.book_id,
+
+                /* -------- Units: spread in [1..100] -------- */
+                (
+                    (
+                        (extract(doy from db.day)::int * 37)
+                      + (db.rn * 11)
+                    ) % 100
+                ) + 1 AS units,
+
+                /* -------- Amount: units * unit_price (rounded to 2 decimals) --------
+                   unit_price =
+                       base by book slot (rn): 8, 11, 14, 17, 20, 23
+                     + month-based cents variation: 0..0.77 €
+                */
+                round(
+                    (
+                        (8 + ((db.rn - 1) * 3))::numeric
+                        + ((((extract(month from db.day)::int - 1) * 7) % 100)::numeric / 100.0)
+                    )
+                    *
+                    (
+                        (
+                            (extract(doy from db.day)::int * 37)
+                          + (db.rn * 11)
+                        ) % 100
+                    + 1)
+                , 2) AS amount_eur,
+
+                -- Stagger sales time during the day (0..5 hours) to avoid identical timestamps
+                (db.day + ((db.rn - 1) || ' hours')::interval) AS sold_at
+            FROM daily_books db
+            ORDER BY db.day, db.rn;
+        </sql>
+    </changeSet>
+</databaseChangeLog>

@@ -1,10 +1,10 @@
 package com.bullit.core.usecase;
 
 import com.bullit.domain.error.PersistenceException;
-import com.bullit.domain.model.Author;
-import com.bullit.domain.model.Book;
-import com.bullit.domain.port.AuthorRepositoryPort;
-import com.bullit.domain.port.BookRepositoryPort;
+import com.bullit.domain.model.library.Author;
+import com.bullit.domain.model.library.Book;
+import com.bullit.domain.port.outbound.AuthorRepositoryPort;
+import com.bullit.domain.port.outbound.BookRepositoryPort;
 import org.junit.jupiter.api.Test;
 
 import static java.util.Collections.emptyList;

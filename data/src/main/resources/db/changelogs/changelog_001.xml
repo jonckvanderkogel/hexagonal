@@ -51,4 +51,38 @@
             <column name="inserted_at"/>
         </createIndex>
     </changeSet>
+
+    <changeSet id="3-sales" author="jonck">
+        <createTable tableName="sales">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="book_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_sales_book"
+                             referencedTableName="books" referencedColumnNames="id"/>
+            </column>
+            <column name="units" type="INT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="amount_eur" type="NUMERIC(12,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sold_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex indexName="idx_sales_book" tableName="sales">
+            <column name="book_id"/>
+        </createIndex>
+
+        <createIndex indexName="idx_sales_sold_at" tableName="sales">
+            <column name="sold_at"/>
+        </createIndex>
+
+        <createIndex indexName="idx_sales_book_sold_at" tableName="sales">
+            <column name="book_id"/>
+            <column name="sold_at"/>
+        </createIndex>
+    </changeSet>
 </databaseChangeLog>

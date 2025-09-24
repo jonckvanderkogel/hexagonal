@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.27.xsd">
+
+    <changeSet id="seed-authors-books" author="jonck" context="seed">
+        <insert tableName="authors">
+            <column name="id"          value="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"/>
+            <column name="first_name"  value="Douglas"/>
+            <column name="last_name"   value="Adams"/>
+            <column name="inserted_at" valueDate="2024-01-01T00:00:00"/>
+        </insert>
+
+        <insert tableName="authors">
+            <column name="id"          value="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"/>
+            <column name="first_name"  value="Terry"/>
+            <column name="last_name"   value="Pratchett"/>
+            <column name="inserted_at" valueDate="2024-01-01T00:00:00"/>
+        </insert>
+
+        <insert tableName="books">
+            <column name="id"          value="0a000000-0000-0000-0000-000000000001"/>
+            <column name="author_id"   value="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"/>
+            <column name="title"       value="Hitchhiker's Guide"/>
+            <column name="inserted_at" valueDate="2024-01-02T00:00:00"/>
+        </insert>
+
+        <insert tableName="books">
+            <column name="id"          value="0a000000-0000-0000-0000-000000000002"/>
+            <column name="author_id"   value="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"/>
+            <column name="title"       value="Restaurant at the End of the Universe"/>
+            <column name="inserted_at" valueDate="2024-01-03T00:00:00"/>
+        </insert>
+
+        <insert tableName="books">
+            <column name="id"          value="0a000000-0000-0000-0000-000000000003"/>
+            <column name="author_id"   value="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"/>
+            <column name="title"       value="Life, the Universe and Everything"/>
+            <column name="inserted_at" valueDate="2024-01-04T00:00:00"/>
+        </insert>
+
+        <insert tableName="books">
+            <column name="id"          value="0b000000-0000-0000-0000-000000000001"/>
+            <column name="author_id"   value="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"/>
+            <column name="title"       value="Small Gods"/>
+            <column name="inserted_at" valueDate="2024-01-02T00:00:00"/>
+        </insert>
+
+        <insert tableName="books">
+            <column name="id"          value="0b000000-0000-0000-0000-000000000002"/>
+            <column name="author_id"   value="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"/>
+            <column name="title"       value="Guards! Guards!"/>
+            <column name="inserted_at" valueDate="2024-01-03T00:00:00"/>
+        </insert>
+
+        <insert tableName="books">
+            <column name="id"          value="0b000000-0000-0000-0000-000000000003"/>
+            <column name="author_id"   value="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"/>
+            <column name="title"       value="Mort"/>
+            <column name="inserted_at" valueDate="2024-01-04T00:00:00"/>
+        </insert>
+
+    </changeSet>
+</databaseChangeLog>

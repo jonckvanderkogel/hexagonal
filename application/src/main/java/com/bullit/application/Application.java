@@ -6,8 +6,8 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @SpringBootApplication(scanBasePackages = "com.bullit")
-@EnableJpaRepositories(basePackages = "com.bullit.data.persistence")
-@EntityScan(basePackages = "com.bullit.data.persistence")
+@EnableJpaRepositories(basePackages = "com.bullit.data")
+@EntityScan(basePackages = "com.bullit.data")
 public class Application {
     public static void main(String[] args) {
         SpringApplication.run(Application.class, args);

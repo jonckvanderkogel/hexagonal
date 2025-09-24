@@ -3,6 +3,8 @@ spring:
     allow-bean-definition-overriding: true
   jpa:
     show-sql: true
+  liquibase:
+    contexts: test
   properties:
     hibernate:
       format_sql: true
