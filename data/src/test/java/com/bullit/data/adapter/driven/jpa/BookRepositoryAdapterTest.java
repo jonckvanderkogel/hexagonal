@@ -34,7 +34,7 @@ final class BookRepositoryAdapterTest {
                 authorId,
                 "First",
                 "Last",
-                List.of(),                 // books
+                List.of(),
                 Instant.parse("2024-01-01T00:00:00Z")
         );
         var savedEntity = new BookEntity(bookId, authorEntity, "Preloaded Book", inserted);

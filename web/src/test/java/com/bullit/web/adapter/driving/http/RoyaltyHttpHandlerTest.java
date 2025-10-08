@@ -2,6 +2,7 @@ package com.bullit.web.adapter.driving.http;
 
 import com.bullit.domain.error.NotFoundException;
 import com.bullit.domain.model.royalty.RoyaltyReport;
+import com.bullit.domain.model.royalty.Sale;
 import com.bullit.domain.model.royalty.TierBreakdown;
 import com.bullit.domain.port.inbound.RoyaltyServicePort;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +11,7 @@ import org.springframework.web.servlet.function.HandlerFilterFunction;
 import org.springframework.web.servlet.function.ServerResponse;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
@@ -126,5 +128,27 @@ final class RoyaltyHttpHandlerTest extends AbstractHttpTest {
         var body = writeToString(res);
         assertThat(status(res)).isEqualTo(404);
         assertThat(body).contains("\"error\":\"Invalid resource identifier:");
+    }
+
+    @Test
+    void create_returns201_with_payload() throws Exception {
+        var id = UUID.randomUUID();
+        var bookId = UUID.randomUUID();
+        when(royaltyService.createSale(bookId, 10, new BigDecimal("100.1")))
+                .thenReturn(Sale.rehydrate(id, bookId,10, new BigDecimal("100.1"), Instant.parse("2024-01-01T00:00:00Z")));
+
+        var req = postJson("/sale", """
+                {"bookId":"%s","units":10,"amountEur":100.1}
+                """.formatted(bookId.toString())
+        );
+        var res = errorFilter.filter(req, handler::createSale);
+
+        var body = writeToString(res);
+        assertThat(status(res)).isEqualTo(201);
+        assertThat(body).contains("\"id\":\"%s\"".formatted(id.toString()));
+        assertThat(body).contains("\"bookId\":\"%s\"".formatted(bookId.toString()));
+        assertThat(body).contains("\"units\":10");
+        assertThat(body).contains("\"amountEur\":100.1");
+        assertThat(body).contains("\"soldAt\":\"2024-01-01T00:00:00Z\"");
     }
 }

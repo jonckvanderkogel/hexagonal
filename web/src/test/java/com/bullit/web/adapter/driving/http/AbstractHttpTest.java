@@ -1,5 +1,8 @@
 package com.bullit.web.adapter.driving.http;
 
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -15,7 +18,12 @@ import java.util.Map;
 
 public abstract class AbstractHttpTest {
     protected final List<HttpMessageConverter<?>> converters =
-            List.of(new MappingJackson2HttpMessageConverter());
+            List.of(new MappingJackson2HttpMessageConverter(
+                    JsonMapper.builder()
+                            .addModule(new JavaTimeModule())
+                            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+                            .build()
+            ));
 
     protected ServerRequest postJson(String path, String json) {
         var servlet = new MockHttpServletRequest("POST", path);

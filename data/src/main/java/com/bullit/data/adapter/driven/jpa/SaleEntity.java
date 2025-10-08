@@ -1,11 +1,9 @@
 package com.bullit.data.adapter.driven.jpa;
 
+import com.bullit.domain.model.royalty.Sale;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
@@ -18,9 +16,8 @@ public class SaleEntity {
     @Id
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "book_id", nullable = false, updatable = false)
-    private BookEntity book;
+    @Column(name = "book_id")
+    private UUID bookId;
 
     @Column(name = "units", nullable = false)
     private int units;
@@ -33,31 +30,31 @@ public class SaleEntity {
 
     protected SaleEntity() {}
 
-    public SaleEntity(UUID id, BookEntity book, int units, BigDecimal amountEur, Instant soldAt) {
+    public SaleEntity(UUID id, UUID bookId, int units, BigDecimal amountEur, Instant soldAt) {
         this.id = id;
-        this.book = book;
+        this.bookId = bookId;
         this.units = units;
         this.amountEur = amountEur;
         this.soldAt = soldAt;
     }
 
-    public UUID getId() {
-        return id;
+    public static SaleEntity toEntity(Sale sale) {
+        return new SaleEntity(
+                sale.getId(),
+                sale.getBookId(),
+                sale.getUnits(),
+                sale.getAmountEur(),
+                sale.getSoldAt()
+        );
     }
 
-    public BookEntity getBook() {
-        return book;
-    }
-
-    public int getUnits() {
-        return units;
-    }
-
-    public BigDecimal getAmountEur() {
-        return amountEur;
-    }
-
-    public Instant getSoldAt() {
-        return soldAt;
+    public static Sale toDomain(SaleEntity entity) {
+        return Sale.rehydrate(
+                entity.id,
+                entity.bookId,
+                entity.units,
+                entity.amountEur,
+                entity.soldAt
+        );
     }
 }

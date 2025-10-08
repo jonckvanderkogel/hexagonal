@@ -4,6 +4,7 @@ import com.bullit.core.usecase.LibraryServiceImpl;
 import com.bullit.core.usecase.RoyaltyServiceImpl;
 import com.bullit.data.adapter.driven.adapter.AuthorRepositoryAdapter;
 import com.bullit.data.adapter.driven.adapter.BookRepositoryAdapter;
+import com.bullit.data.adapter.driven.adapter.SaleRepositoryAdapter;
 import com.bullit.data.adapter.driven.adapter.SalesReportingAdapter;
 import com.bullit.data.adapter.driven.jpa.AuthorJpaRepository;
 import com.bullit.data.adapter.driven.jpa.BookJpaRepository;
@@ -14,6 +15,7 @@ import com.bullit.domain.port.inbound.LibraryServicePort;
 import com.bullit.domain.port.inbound.RoyaltyServicePort;
 import com.bullit.domain.port.outbound.AuthorRepositoryPort;
 import com.bullit.domain.port.outbound.BookRepositoryPort;
+import com.bullit.domain.port.outbound.SaleRepositoryPort;
 import com.bullit.domain.port.outbound.reporting.SalesReportingPort;
 import com.bullit.web.adapter.driving.http.AuthorHttpHandler;
 import com.bullit.web.adapter.driving.http.HttpErrorFilter;
@@ -49,9 +51,16 @@ public class BeansConfig {
     @Bean
     public RoyaltyServicePort royaltyServicePort(
             SalesReportingPort salesReportingPort,
-            RoyaltyScheme royaltyScheme
+            SaleRepositoryPort saleRepositoryPort,
+            RoyaltyScheme royaltyScheme,
+            Clock clock
     ) {
-        return new RoyaltyServiceImpl(salesReportingPort, royaltyScheme);
+        return new RoyaltyServiceImpl(
+                salesReportingPort,
+                saleRepositoryPort,
+                royaltyScheme,
+                clock
+        );
     }
 
     @Bean
@@ -68,17 +77,22 @@ public class BeansConfig {
     }
 
     @Bean
-    public AuthorRepositoryAdapter authorRepositoryAdapter(AuthorJpaRepository jpaRepository) {
+    public AuthorRepositoryPort authorRepositoryPort(AuthorJpaRepository jpaRepository) {
         return new AuthorRepositoryAdapter(jpaRepository);
     }
 
     @Bean
-    public BookRepositoryAdapter bookRepositoryAdapter(BookJpaRepository jpaRepository) {
+    public BookRepositoryPort bookRepositoryPort(BookJpaRepository jpaRepository) {
         return new BookRepositoryAdapter(jpaRepository);
     }
 
     @Bean
-    public SalesReportingAdapter salesReportingAdapter(SaleJpaRepository jpaRepository) {
+    public SaleRepositoryPort saleRepositoryPort(SaleJpaRepository jpaRepository) {
+        return new SaleRepositoryAdapter(jpaRepository);
+    }
+
+    @Bean
+    public SalesReportingPort salesReportingPort(SaleJpaRepository jpaRepository) {
         return new SalesReportingAdapter(jpaRepository);
     }
 
@@ -87,7 +101,8 @@ public class BeansConfig {
         return new AuthorHttpHandler(libraryServicePort);
     }
 
-    @Bean RoyaltyHttpHandler royaltyHttpHandler(RoyaltyServicePort royaltyServicePort) {
+    @Bean
+    RoyaltyHttpHandler royaltyHttpHandler(RoyaltyServicePort royaltyServicePort) {
         return new RoyaltyHttpHandler(royaltyServicePort);
     }
 
@@ -97,13 +112,21 @@ public class BeansConfig {
     }
 
     @Bean
-    public RouterFunction<ServerResponse> routes(AuthorHttpHandler authorHandler,
-                                                 RoyaltyHttpHandler royaltyHandler,
-                                                 HandlerFilterFunction<ServerResponse, ServerResponse> errorFilter) {
+    public RouterFunction<ServerResponse> libraryRoutes(AuthorHttpHandler authorHandler,
+                                                        HandlerFilterFunction<ServerResponse, ServerResponse> errorFilter) {
         return RouterFunctions.route()
                 .POST("/authors", authorHandler::createAuthor)
                 .POST("/authors/{id}/books", authorHandler::addBookToAuthor)
                 .GET("/authors/{id}", authorHandler::getAuthorById)
+                .filter(errorFilter)
+                .build();
+    }
+
+    @Bean
+    public RouterFunction<ServerResponse> royaltyRoutes(RoyaltyHttpHandler royaltyHandler,
+                                                        HandlerFilterFunction<ServerResponse, ServerResponse> errorFilter) {
+        return RouterFunctions.route()
+                .POST("/sale", royaltyHandler::createSale)
                 .GET("/authors/{id}/royalties/{period}", royaltyHandler::getMonthlyRoyalty)
                 .filter(errorFilter)
                 .build();

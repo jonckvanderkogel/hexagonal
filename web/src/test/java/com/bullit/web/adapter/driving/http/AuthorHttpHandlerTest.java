@@ -47,6 +47,7 @@ final class AuthorHttpHandlerTest extends AbstractHttpTest {
         assertThat(body).contains("\"id\":\"" + id + "\"");
         assertThat(body).contains("\"firstName\":\"Douglas\"");
         assertThat(body).contains("\"lastName\":\"Adams\"");
+        assertThat(body).contains("\"insertedAt\":\"2024-01-01T00:00:00Z\"");
     }
 
     @Test

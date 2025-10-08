@@ -55,7 +55,7 @@ class AuthorHttpIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void create_then_get_by_id() {
+    void createAuthor_then_get_by_id() {
         var createReq = Map.of("firstName", "Douglas", "lastName", "Adams");
         ResponseEntity<AuthorResponse> created = rest.postForEntity(base("/authors"), createReq, AuthorResponse.class);
 
@@ -109,7 +109,7 @@ class AuthorHttpIT extends AbstractIntegrationTest {
     }
 
     @Test
-    void create_with_empty_names_returns_400() {
+    void createAuthor_with_empty_names_returns_400() {
         var headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         var request = new HttpEntity<>(Map.of("firstName", "", "lastName", ""), headers);
@@ -120,6 +120,32 @@ class AuthorHttpIT extends AbstractIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(res.getBody()).isNotNull();
         assertThat(res.getBody().error()).isNotBlank();
+    }
+
+    @Test
+    void addBookToAuthor_then_get_by_id() {
+        var authorId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+        var title = "Hitchhiker's Guide to the Galaxy";
+
+        var createReq = Map.of("title", title);
+        ResponseEntity<BookResponse> created = rest.postForEntity(base("/authors/{id}/books"), createReq, BookResponse.class, authorId);
+
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(created.getBody()).isNotNull();
+        var id = created.getBody().id();
+        assertThat(id).isNotEmpty();
+        assertThat(created.getBody().title()).isEqualTo(title);
+        assertThat(created.getBody().authorId()).isEqualTo(authorId.toString());
+        assertThat(created.getBody().insertedAt())
+                .isEqualTo(
+                        LocalDateTime.of(2024, 8, 13, 9, 0, 0)
+                                .toInstant(ZoneOffset.UTC)
+                );
+
+        ResponseEntity<AuthorResponse> gotAuthor = rest.getForEntity(base("/authors/{id}"), AuthorResponse.class, authorId);
+        assertThat(gotAuthor.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(gotAuthor.getBody()).isNotNull();
+        assertThat(gotAuthor.getBody().books().size()).isEqualTo(2);
     }
 
     @TestConfiguration

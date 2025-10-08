@@ -48,11 +48,6 @@ public class BookEntity {
         this.insertedAt = insertedAt;
     }
 
-    public UUID getId() { return id; }
-    public AuthorEntity getAuthor() { return author; }
-    public String getTitle() { return title; }
-    public Instant getInsertedAt() { return insertedAt; }
-
     public static BookEntity toEntity(Book book) {
         return new BookEntity(
                 book.getId(),
@@ -64,15 +59,15 @@ public class BookEntity {
 
     public static Book toDomain(BookEntity entity) {
         UUID authorId =
-                entity.getAuthor() != null
-                        ? entity.getAuthor().getId()
+                entity.author != null
+                        ? entity.author.getId()
                         : entity.authorId;
 
         return Book.rehydrate(
-                entity.getId(),
+                entity.id,
                 authorId,
-                entity.getTitle(),
-                entity.getInsertedAt()
+                entity.title,
+                entity.insertedAt
         );
     }
 }

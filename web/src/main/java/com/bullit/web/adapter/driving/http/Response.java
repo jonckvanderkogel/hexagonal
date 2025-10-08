@@ -3,11 +3,13 @@ package com.bullit.web.adapter.driving.http;
 import com.bullit.domain.model.library.Author;
 import com.bullit.domain.model.library.Book;
 import com.bullit.domain.model.royalty.RoyaltyReport;
+import com.bullit.domain.model.royalty.Sale;
 import com.bullit.domain.model.royalty.TierBreakdown;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 public class Response {
     public record AuthorResponse(
@@ -80,6 +82,24 @@ public class Response {
                     r.getRoyaltyDue(),
                     r.getMinimumGuarantee(),
                     r.getBreakdown().stream().map(TierBreakdownResponse::fromDomain).toList()
+            );
+        }
+    }
+
+    public record SaleResponse(
+            UUID id,
+            UUID bookId,
+            int units,
+            BigDecimal amountEur,
+            Instant soldAt
+    ) {
+        public static SaleResponse fromDomain(Sale s) {
+            return new SaleResponse(
+                    s.getId(),
+                    s.getBookId(),
+                    s.getUnits(),
+                    s.getAmountEur(),
+                    s.getSoldAt()
             );
         }
     }

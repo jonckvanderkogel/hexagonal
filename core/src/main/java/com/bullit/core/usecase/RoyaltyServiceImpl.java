@@ -2,8 +2,10 @@ package com.bullit.core.usecase;
 
 import com.bullit.domain.model.royalty.RoyaltyScheme;
 import com.bullit.domain.model.royalty.RoyaltyTier;
+import com.bullit.domain.model.royalty.Sale;
 import com.bullit.domain.model.royalty.TierBreakdown;
 import com.bullit.domain.port.inbound.RoyaltyServicePort;
+import com.bullit.domain.port.outbound.SaleRepositoryPort;
 import com.bullit.domain.port.outbound.reporting.SalesReportingPort;
 import com.bullit.domain.model.royalty.RoyaltyReport;
 import com.bullit.domain.model.sales.SalesSummary;
@@ -11,6 +13,7 @@ import com.bullit.domain.model.sales.SalesSummary;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
+import java.time.Clock;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,12 +23,19 @@ import static java.math.BigDecimal.ZERO;
 
 public final class RoyaltyServiceImpl implements RoyaltyServicePort {
     private final SalesReportingPort salesReportingPort;
+    private final SaleRepositoryPort saleRepositoryPort;
     private final RoyaltyScheme scheme;
     private final MathContext mc = new MathContext(12, RoundingMode.HALF_UP);
+    private final Clock clock;
 
-    public RoyaltyServiceImpl(SalesReportingPort salesReportingPort, RoyaltyScheme scheme) {
+    public RoyaltyServiceImpl(SalesReportingPort salesReportingPort,
+                              SaleRepositoryPort saleRepositoryPort,
+                              RoyaltyScheme scheme,
+                              Clock clock) {
         this.salesReportingPort = salesReportingPort;
+        this.saleRepositoryPort = saleRepositoryPort;
         this.scheme = scheme;
+        this.clock = clock;
     }
 
     @Override
@@ -103,5 +113,10 @@ public final class RoyaltyServiceImpl implements RoyaltyServicePort {
                 );
 
         return acc.out();
+    }
+
+    @Override
+    public Sale createSale(UUID bookId, int units, BigDecimal amountEur) {
+        return saleRepositoryPort.addSale(Sale.createNew(bookId, units, amountEur, clock));
     }
 }

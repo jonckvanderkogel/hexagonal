@@ -4,6 +4,7 @@ import com.bullit.domain.model.royalty.RoyaltyScheme;
 import com.bullit.domain.model.royalty.RoyaltyTier;
 import com.bullit.web.adapter.driving.http.Response.RoyaltyReportResponse;
 import com.bullit.web.adapter.driving.http.Response.ErrorResponse;
+import com.bullit.web.adapter.driving.http.Response.SaleResponse;
 import com.github.springtestdbunit.DbUnitTestExecutionListener;
 import com.github.springtestdbunit.annotation.DatabaseSetup;
 import com.github.springtestdbunit.annotation.DbUnitConfiguration;
@@ -22,7 +23,11 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestExecutionListeners;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -96,6 +101,31 @@ class RoyaltyHttpIT extends AbstractIntegrationTest {
         assertThat(res.getBody().error()).isNotBlank();
     }
 
+    @Test
+    void addSale_returns201() {
+        var createReq = Map.of("bookId", "33333333-3333-3333-3333-333333333333", "units", "100", "amountEur", "550.15");
+        ResponseEntity<SaleResponse> created = rest.postForEntity(base("/sale"), createReq, SaleResponse.class);
+
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(created.getBody()).isNotNull();
+        assertThat(created.getBody().id()).isNotNull();
+        assertThat(created.getBody().bookId()).isEqualTo(UUID.fromString("33333333-3333-3333-3333-333333333333"));
+        assertThat(created.getBody().amountEur()).isEqualTo("550.15");
+        assertThat(created.getBody().units()).isEqualTo(100);
+        assertThat(created.getBody().soldAt()).isEqualTo(
+                LocalDateTime.of(2024, 8, 13, 9, 0, 0)
+                        .toInstant(ZoneOffset.UTC)
+        );
+    }
+
+    @Test
+    void invalidSale_returns400() {
+        var createReq = Map.of("units", "100", "amountEur", "550.15");
+        ResponseEntity<SaleResponse> created = rest.postForEntity(base("/sale"), createReq, SaleResponse.class);
+
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
     @TestConfiguration
     static class TestConfig {
         @Bean
@@ -109,6 +139,17 @@ class RoyaltyHttpIT extends AbstractIntegrationTest {
                     ),
                     new BigDecimal("100.00")
             );
+        }
+
+        @Bean
+        @Primary
+        public Clock clock() {
+            return Clock
+                    .fixed(
+                            LocalDateTime.of(2024, 8, 13, 9, 0, 0)
+                                    .toInstant(ZoneOffset.UTC),
+                            ZoneOffset.UTC
+                    );
         }
     }
 }

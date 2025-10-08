@@ -3,12 +3,16 @@ package com.bullit.web.adapter.driving.http;
 import com.bullit.domain.port.inbound.RoyaltyServicePort;
 import com.bullit.web.adapter.driving.http.Response.RoyaltyReportResponse;
 import com.bullit.web.adapter.driving.http.util.HttpUtil;
+import jakarta.servlet.ServletException;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.servlet.function.ServerRequest;
 import org.springframework.web.servlet.function.ServerResponse;
 
+import java.io.IOException;
 import java.time.YearMonth;
 import java.util.UUID;
 
+import static com.bullit.web.adapter.driving.http.util.HttpUtil.parseAndValidateBody;
 import static org.springframework.http.HttpStatus.OK;
 
 public final class RoyaltyHttpHandler {
@@ -17,6 +21,14 @@ public final class RoyaltyHttpHandler {
 
     public RoyaltyHttpHandler(RoyaltyServicePort royaltyService) {
         this.royaltyService = royaltyService;
+    }
+
+    public ServerResponse createSale(ServerRequest request) throws ServletException, IOException {
+        var dto = parseAndValidateBody(request, Request.CreateSaleRequest.class);
+        var created = royaltyService.createSale(dto.bookId(), dto.units(), dto.amountEur());
+        return ServerResponse
+                .status(HttpStatus.CREATED)
+                .body(Response.SaleResponse.fromDomain(created));
     }
 
     /**
