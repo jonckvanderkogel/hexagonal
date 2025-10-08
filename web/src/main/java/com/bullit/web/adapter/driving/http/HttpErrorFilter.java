@@ -33,7 +33,7 @@ public final class HttpErrorFilter implements HandlerFilterFunction<ServerRespon
                     .status(HttpStatus.NOT_FOUND)
                     .body(new ErrorResponse("Invalid resource identifier: %s".formatted(e.getMessage())));
         } catch (PersistenceException e) {
-            log.error("500 Persistence error [{} {}]", request.method(), request.uri(), e);
+            log.error("500 Persistence error [{} {} {}]", request.method(), request.uri(), e.getCause().getMessage());
             return ServerResponse
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(new ErrorResponse(e.getMessage()));

@@ -20,7 +20,7 @@ public class SaleRepositoryAdapter implements SaleRepositoryPort {
             SaleEntity saved = repo.save(SaleEntity.toEntity(sale));
             return SaleEntity.toDomain(saved);
         } catch (DataAccessException ex) {
-            throw new PersistenceException("DB error during save of sale: %s".formatted(ex.getMessage()), ex);
+            throw new PersistenceException("DB error during save of sale", ex);
         }
     }
 }

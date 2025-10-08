@@ -20,7 +20,7 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<java.version>25</java.version>
-		<spring-boot.version>3.5.5</spring-boot.version>
+		<spring-boot.version>3.5.6</spring-boot.version>
 		<archunit.version>1.4.1</archunit.version>
 		<validation.api.version>3.1.1</validation.api.version>
 		<hibernate.validator.version>8.0.3.Final</hibernate.validator.version>

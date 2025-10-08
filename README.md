@@ -1,7 +1,7 @@
 # Hexagonal architecture sample app
 
 ### Dependencies
-* Java 24
+* Java 25
 * Maven
 
 ### Running the application
@@ -13,9 +13,9 @@ docker compose up -d
 mvn clean -f application spring-boot:run
 ```
 
-#### Calling endpoints:
+### Calling endpoints:
 
-Create author:
+#### Create author:
 ```bash
 curl -i -X POST http://localhost:8080/authors \
   -H "Content-Type: application/json" \
@@ -39,7 +39,7 @@ Content-Type: application/json
 }
 ```
 
-Passing an invalid name:
+##### Passing an invalid name:
 ```bash
 curl -i -X POST http://localhost:8080/authors \
   -H "Content-Type: application/json" \
@@ -59,7 +59,7 @@ Content-Type: application/json
 }
 ```
 
-Fetch author by id:
+#### Fetch author by id:
 ```bash
 curl -i http://localhost:8080/authors/1a2b3c4d-5678-90ab-cdef-1234567890ab
 ```
@@ -85,7 +85,7 @@ Content-Type: application/json
 }
 ```
 
-If the id doesn't exist:
+##### If the id doesn't exist:
 ```
 HTTP/1.1 404 Not Found
 Content-Type: application/json
@@ -105,7 +105,7 @@ Content-Type: application/json
 }
 ```
 
-Add a book to an author:
+#### Add a book to an author:
 ```
 curl -i -X POST http://localhost:8080/authors/1a2b3c4d-5678-90ab-cdef-1234567890ab/books \
   -H "Content-Type: application/json" \
@@ -127,7 +127,70 @@ Content-Type: application/json
 }
 ```
 
-Fetch monthly royalty report for an author:
+##### For a non-existent author:
+```
+curl -i -X POST http://localhost:8080/authors/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab/books \
+  -H "Content-Type: application/json" \
+  -d '{
+        "title": "The Hitchhiker'\''s Guide to the Galaxy"
+      }'
+```
+
+The expected response is:
+```
+HTTP/1.1 500
+Content-Type: application/json
+Transfer-Encoding: chunked
+
+{"error":"DB error during save of book"}%
+```
+
+#### Add sale for book:
+```bash
+curl -i -X POST http://localhost:8080/sale \
+  -H "Content-Type: application/json" \
+  -d '{
+        "bookId": "0a000000-0000-0000-0000-000000000001",
+        "units": 100,
+        "amountEur": 100.1
+      }'
+```
+
+Expected response:
+```
+HTTP/1.1 201 Created
+Content-Type: application/json
+
+{
+  "id": "f7ffc823-3586-43fc-9839-f0a00324d238",
+  "bookId": "0a000000-0000-0000-0000-000000000001",
+  "units": 100,
+  "amountEur": 100.1,
+  "soldAt": "2025-10-08T22:43:12.510266Z"
+}
+```
+
+##### Passing an invalid body:
+```bash
+curl -i -X POST http://localhost:8080/sale \
+  -H "Content-Type: application/json" \
+  -d '{
+        "units": 100,
+        "amountEur": 100.1
+      }'
+```
+
+Expected response:
+```
+HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+{
+    "error":"Invalid request: Book ID is required"
+}
+```
+
+#### Fetch monthly royalty report for an author:
 ```
 curl -i http://localhost:8080/authors/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa/royalties/2024-02
 ```
@@ -171,7 +234,7 @@ Transfer-Encoding: chunked
 }
 ```
 
-For a non-existent author:
+##### For a non-existent author:
 ```
 curl -i http://localhost:8080/authors/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab/royalties/2024-02
 ```

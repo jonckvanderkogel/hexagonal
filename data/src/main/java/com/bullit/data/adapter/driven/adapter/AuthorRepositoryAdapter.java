@@ -24,7 +24,7 @@ public class AuthorRepositoryAdapter implements AuthorRepositoryPort {
             AuthorEntity saved = repo.save(AuthorEntity.toEntity(author));
             return AuthorEntity.toDomain(saved);
         } catch (DataAccessException ex) {
-            throw new PersistenceException("DB error during save of author: %s".formatted(ex.getMessage()), ex);
+            throw new PersistenceException("DB error during save of author", ex);
         }
     }
 
@@ -35,7 +35,7 @@ public class AuthorRepositoryAdapter implements AuthorRepositoryPort {
                     .orElseThrow(() -> new NotFoundException("Author %s not found".formatted(id)));
             return AuthorEntity.toDomain(entity);
         } catch (DataAccessException ex) {
-            throw new PersistenceException("DB error during findById: %s".formatted(ex.getMessage()), ex);
+            throw new PersistenceException("DB error during findById", ex);
         }
     }
 }

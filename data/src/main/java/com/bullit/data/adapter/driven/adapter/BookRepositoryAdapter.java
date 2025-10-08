@@ -20,7 +20,7 @@ public class BookRepositoryAdapter implements BookRepositoryPort {
             BookEntity saved = repo.save(BookEntity.toEntity(book));
             return BookEntity.toDomain(saved);
         } catch (DataAccessException ex) {
-            throw new PersistenceException("DB error during save of book: %s".formatted(ex.getMessage()), ex);
+            throw new PersistenceException("DB error during save of book", ex);
         }
     }
 }

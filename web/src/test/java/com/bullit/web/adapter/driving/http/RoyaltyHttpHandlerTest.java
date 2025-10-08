@@ -131,7 +131,7 @@ final class RoyaltyHttpHandlerTest extends AbstractHttpTest {
     }
 
     @Test
-    void create_returns201_with_payload() throws Exception {
+    void createSale_returns201_with_payload() throws Exception {
         var id = UUID.randomUUID();
         var bookId = UUID.randomUUID();
         when(royaltyService.createSale(bookId, 10, new BigDecimal("100.1")))

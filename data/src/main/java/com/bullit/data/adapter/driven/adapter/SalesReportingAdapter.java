@@ -35,7 +35,7 @@ public final class SalesReportingAdapter implements SalesReportingPort {
             return SalesSummary.of(units, gross);
         } catch (DataAccessException ex) {
             throw new PersistenceException(
-                    "DB error during monthly sales summary: %s".formatted(ex.getMessage()), ex);
+                    "DB error during monthly sales summary", ex);
         }
     }
 }
