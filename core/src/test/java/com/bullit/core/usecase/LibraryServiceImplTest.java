@@ -1,6 +1,6 @@
 package com.bullit.core.usecase;
 
-import com.bullit.domain.error.PersistenceException;
+import com.bullit.domain.error.DatabaseInteractionException;
 import com.bullit.domain.model.library.Author;
 import com.bullit.domain.model.library.Book;
 import com.bullit.domain.port.outbound.AuthorRepositoryPort;
@@ -64,10 +64,10 @@ final class LibraryServiceImplTest {
     @Test
     void getById_repoThrows_propagates() {
         var id = UUID.randomUUID();
-        when(authorRepo.findById(id)).thenThrow(new PersistenceException("DB down", new RuntimeException("x")));
+        when(authorRepo.findById(id)).thenThrow(new DatabaseInteractionException("DB down", new RuntimeException("x")));
 
         assertThatThrownBy(() -> service.getById(id))
-                .isInstanceOf(PersistenceException.class)
+                .isInstanceOf(DatabaseInteractionException.class)
                 .hasMessageContaining("DB down");
     }
 

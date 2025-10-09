@@ -1,7 +1,7 @@
 package com.bullit.web.adapter.driving.http;
 
 import com.bullit.domain.error.NotFoundException;
-import com.bullit.domain.error.PersistenceException;
+import com.bullit.domain.error.DatabaseInteractionException;
 import com.bullit.web.adapter.driving.http.Response.ErrorResponse;
 import jakarta.annotation.Nonnull;
 import org.slf4j.Logger;
@@ -32,7 +32,7 @@ public final class HttpErrorFilter implements HandlerFilterFunction<ServerRespon
             return ServerResponse
                     .status(HttpStatus.NOT_FOUND)
                     .body(new ErrorResponse("Invalid resource identifier: %s".formatted(e.getMessage())));
-        } catch (PersistenceException e) {
+        } catch (DatabaseInteractionException e) {
             log.error("500 Persistence error [{} {} {}]", request.method(), request.uri(), e.getCause().getMessage());
             return ServerResponse
                     .status(HttpStatus.INTERNAL_SERVER_ERROR)

@@ -2,7 +2,7 @@ package com.bullit.data.adapter.driven.adapter;
 
 import com.bullit.data.adapter.driven.jpa.SaleJpaRepository;
 import com.bullit.domain.error.NotFoundException;
-import com.bullit.domain.error.PersistenceException;
+import com.bullit.domain.error.DatabaseInteractionException;
 import com.bullit.domain.model.sales.SalesSummary;
 import com.bullit.domain.port.outbound.reporting.SalesReportingPort;
 import org.springframework.dao.DataAccessException;
@@ -34,7 +34,7 @@ public final class SalesReportingAdapter implements SalesReportingPort {
 
             return SalesSummary.of(units, gross);
         } catch (DataAccessException ex) {
-            throw new PersistenceException(
+            throw new DatabaseInteractionException(
                     "DB error during monthly sales summary", ex);
         }
     }

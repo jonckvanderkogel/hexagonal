@@ -3,7 +3,7 @@ package com.bullit.data.adapter.driven.adapter;
 import com.bullit.data.adapter.driven.jpa.AuthorEntity;
 import com.bullit.data.adapter.driven.jpa.AuthorJpaRepository;
 import com.bullit.domain.error.NotFoundException;
-import com.bullit.domain.error.PersistenceException;
+import com.bullit.domain.error.DatabaseInteractionException;
 import com.bullit.domain.model.library.Author;
 import com.bullit.domain.port.outbound.AuthorRepositoryPort;
 import org.springframework.dao.DataAccessException;
@@ -24,7 +24,7 @@ public class AuthorRepositoryAdapter implements AuthorRepositoryPort {
             AuthorEntity saved = repo.save(AuthorEntity.toEntity(author));
             return AuthorEntity.toDomain(saved);
         } catch (DataAccessException ex) {
-            throw new PersistenceException("DB error during save of author", ex);
+            throw new DatabaseInteractionException("DB error during save of author", ex);
         }
     }
 
@@ -35,7 +35,7 @@ public class AuthorRepositoryAdapter implements AuthorRepositoryPort {
                     .orElseThrow(() -> new NotFoundException("Author %s not found".formatted(id)));
             return AuthorEntity.toDomain(entity);
         } catch (DataAccessException ex) {
-            throw new PersistenceException("DB error during findById", ex);
+            throw new DatabaseInteractionException("DB error during findById", ex);
         }
     }
 }

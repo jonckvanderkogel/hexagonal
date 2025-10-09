@@ -20,6 +20,7 @@ import com.bullit.domain.port.outbound.reporting.SalesReportingPort;
 import com.bullit.web.adapter.driving.http.AuthorHttpHandler;
 import com.bullit.web.adapter.driving.http.HttpErrorFilter;
 import com.bullit.web.adapter.driving.http.RoyaltyHttpHandler;
+import jakarta.persistence.EntityManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.function.HandlerFilterFunction;
@@ -82,13 +83,13 @@ public class BeansConfig {
     }
 
     @Bean
-    public BookRepositoryPort bookRepositoryPort(BookJpaRepository jpaRepository) {
-        return new BookRepositoryAdapter(jpaRepository);
+    public BookRepositoryPort bookRepositoryPort(EntityManager entityManager) {
+        return new BookRepositoryAdapter(entityManager);
     }
 
     @Bean
-    public SaleRepositoryPort saleRepositoryPort(SaleJpaRepository jpaRepository) {
-        return new SaleRepositoryAdapter(jpaRepository);
+    public SaleRepositoryPort saleRepositoryPort(EntityManager entityManager) {
+        return new SaleRepositoryAdapter(entityManager);
     }
 
     @Bean

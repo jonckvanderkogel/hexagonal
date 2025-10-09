@@ -2,7 +2,7 @@ package com.bullit.data.adapter.driven.jpa;
 
 import com.bullit.data.adapter.driven.adapter.AuthorRepositoryAdapter;
 import com.bullit.domain.error.NotFoundException;
-import com.bullit.domain.error.PersistenceException;
+import com.bullit.domain.error.DatabaseInteractionException;
 import com.bullit.domain.model.library.Author;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -44,7 +44,7 @@ final class AuthorRepositoryAdapterTest {
         when(jpa.save(any())).thenThrow(new DataAccessResourceFailureException("boom"));
 
         assertThatThrownBy(() -> adapter.save(author))
-                .isInstanceOf(PersistenceException.class)
+                .isInstanceOf(DatabaseInteractionException.class)
                 .hasMessageContaining("DB error during save");
     }
 
@@ -76,7 +76,7 @@ final class AuthorRepositoryAdapterTest {
         when(jpa.findById(id)).thenThrow(new DataAccessResourceFailureException("db down"));
 
         assertThatThrownBy(() -> adapter.findById(id))
-                .isInstanceOf(PersistenceException.class)
+                .isInstanceOf(DatabaseInteractionException.class)
                 .hasMessageContaining("DB error during findById");
     }
 }

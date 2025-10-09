@@ -148,6 +148,18 @@ class AuthorHttpIT extends AbstractIntegrationTest {
         assertThat(gotAuthor.getBody().books().size()).isEqualTo(2);
     }
 
+    @Test
+    void addBookToNonExistentAuthor_returns404() {
+        var nonExistentAuthorId = UUID.fromString("44444444-4444-4444-4444-444444444444");
+        var title = "Hitchhiker's Guide to the Galaxy";
+
+        var createReq = Map.of("title", title);
+
+        ResponseEntity<BookResponse> created = rest.postForEntity(base("/authors/{id}/books"), createReq, BookResponse.class, nonExistentAuthorId);
+
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
     @TestConfiguration
     static class TestConfig {
         @Bean

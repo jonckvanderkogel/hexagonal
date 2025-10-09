@@ -126,6 +126,14 @@ class RoyaltyHttpIT extends AbstractIntegrationTest {
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
+    @Test
+    void invalidBookForSale_returns404() {
+        var createReq = Map.of("bookId", "44444444-4444-4444-4444-444444444444", "units", "100", "amountEur", "550.15");
+        ResponseEntity<SaleResponse> created = rest.postForEntity(base("/sale"), createReq, SaleResponse.class);
+
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
     @TestConfiguration
     static class TestConfig {
         @Bean

@@ -1,7 +1,7 @@
 package com.bullit.data.adapter.driven.jpa;
 
 import com.bullit.data.adapter.driven.adapter.SalesReportingAdapter;
-import com.bullit.domain.error.PersistenceException;
+import com.bullit.domain.error.DatabaseInteractionException;
 import com.bullit.domain.model.sales.SalesSummary;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -87,7 +87,7 @@ final class SalesReportingAdapterTest {
                 .thenThrow(new DataAccessResourceFailureException("db down"));
 
         assertThatThrownBy(() -> adapter.monthlyAuthorSales(authorId, ym))
-                .isInstanceOf(PersistenceException.class)
+                .isInstanceOf(DatabaseInteractionException.class)
                 .hasMessageContaining("DB error during monthly sales summary");
     }
 

@@ -138,11 +138,11 @@ curl -i -X POST http://localhost:8080/authors/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa
 
 The expected response is:
 ```
-HTTP/1.1 500
+HTTP/1.1 404
 Content-Type: application/json
 Transfer-Encoding: chunked
 
-{"error":"DB error during save of book"}%
+{"error":"Invalid resource identifier: Author aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab not found"}
 ```
 
 #### Add sale for book:
