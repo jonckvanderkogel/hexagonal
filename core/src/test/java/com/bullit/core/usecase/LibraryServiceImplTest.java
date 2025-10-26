@@ -5,6 +5,7 @@ import com.bullit.domain.model.library.Author;
 import com.bullit.domain.model.library.Book;
 import com.bullit.domain.port.driven.AuthorRepositoryPort;
 import com.bullit.domain.port.driven.BookRepositoryPort;
+import org.assertj.core.api.BDDSoftAssertions;
 import org.junit.jupiter.api.Test;
 
 import static java.util.Collections.emptyList;
@@ -36,9 +37,12 @@ final class LibraryServiceImplTest {
 
         Author created = service.createAuthor("Douglas", "Adams");
 
-        assertThat(created.getFirstName()).isEqualTo("Douglas");
-        assertThat(created.getLastName()).isEqualTo("Adams");
-        assertThat(created.getInsertedAt()).isEqualTo(Instant.parse("2024-01-01T00:00:00Z"));
+        var softly = new BDDSoftAssertions();
+        softly.then(created.getFirstName()).isEqualTo("Douglas");
+        softly.then(created.getLastName()).isEqualTo("Adams");
+        softly.then(created.getInsertedAt()).isEqualTo(Instant.parse("2024-01-01T00:00:00Z"));
+        softly.assertAll();
+
         verify(authorRepo, times(1)).save(any(Author.class));
     }
 
