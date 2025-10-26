@@ -3,7 +3,7 @@ package com.bullit.data.adapter.driven.adapter;
 import com.bullit.domain.error.NotFoundException;
 import com.bullit.domain.error.DatabaseInteractionException;
 import com.bullit.domain.model.royalty.Sale;
-import com.bullit.domain.port.outbound.SaleRepositoryPort;
+import com.bullit.domain.port.driven.SaleRepositoryPort;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceException;

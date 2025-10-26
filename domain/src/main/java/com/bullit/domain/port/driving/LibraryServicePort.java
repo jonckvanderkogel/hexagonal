@@ -1,4 +1,4 @@
-package com.bullit.domain.port.inbound;
+package com.bullit.domain.port.driving;
 
 import com.bullit.domain.model.library.Author;
 import com.bullit.domain.model.library.Book;

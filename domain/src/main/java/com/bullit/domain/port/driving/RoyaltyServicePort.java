@@ -1,4 +1,4 @@
-package com.bullit.domain.port.inbound;
+package com.bullit.domain.port.driving;
 
 import com.bullit.domain.model.royalty.RoyaltyReport;
 import com.bullit.domain.model.royalty.Sale;

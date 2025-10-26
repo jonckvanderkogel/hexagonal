@@ -1,6 +1,6 @@
 package com.bullit.web.adapter.driving.http;
 
-import com.bullit.domain.port.inbound.LibraryServicePort;
+import com.bullit.domain.port.driving.LibraryServicePort;
 import com.bullit.web.adapter.driving.http.Request.AddBookRequest;
 import com.bullit.web.adapter.driving.http.Request.CreateAuthorRequest;
 import com.bullit.web.adapter.driving.http.Response.AuthorResponse;

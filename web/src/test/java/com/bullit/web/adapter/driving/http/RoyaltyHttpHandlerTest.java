@@ -4,7 +4,7 @@ import com.bullit.domain.error.NotFoundException;
 import com.bullit.domain.model.royalty.RoyaltyReport;
 import com.bullit.domain.model.royalty.Sale;
 import com.bullit.domain.model.royalty.TierBreakdown;
-import com.bullit.domain.port.inbound.RoyaltyServicePort;
+import com.bullit.domain.port.driving.RoyaltyServicePort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.function.HandlerFilterFunction;

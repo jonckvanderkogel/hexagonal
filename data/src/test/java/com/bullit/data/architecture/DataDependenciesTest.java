@@ -26,7 +26,7 @@ public class DataDependenciesTest {
     static final ArchRule data_should_not_depend_on_spring_boot =
             noClasses().that().resideInAnyPackage("com.bullit.data..")
                     .should().dependOnClassesThat().resideInAnyPackage(
-                            "org.springframework.boot..",           // all Boot APIs
+                            "org.springframework.boot..",
                             "org.springframework.boot.autoconfigure..",
                             "org.springframework.boot.context.."
                     );

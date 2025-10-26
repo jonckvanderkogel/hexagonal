@@ -5,7 +5,7 @@ import com.bullit.data.adapter.driven.jpa.AuthorJpaRepository;
 import com.bullit.domain.error.NotFoundException;
 import com.bullit.domain.error.DatabaseInteractionException;
 import com.bullit.domain.model.library.Author;
-import com.bullit.domain.port.outbound.AuthorRepositoryPort;
+import com.bullit.domain.port.driven.AuthorRepositoryPort;
 import org.springframework.dao.DataAccessException;
 
 import java.util.UUID;

@@ -2,7 +2,7 @@ package com.bullit.web.adapter.driving.http;
 
 import com.bullit.domain.error.NotFoundException;
 import com.bullit.domain.model.library.Author;
-import com.bullit.domain.port.inbound.LibraryServicePort;
+import com.bullit.domain.port.driving.LibraryServicePort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.function.HandlerFilterFunction;

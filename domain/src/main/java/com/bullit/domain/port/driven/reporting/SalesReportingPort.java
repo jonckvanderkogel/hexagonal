@@ -1,4 +1,4 @@
-package com.bullit.domain.port.outbound.reporting;
+package com.bullit.domain.port.driven.reporting;
 
 import com.bullit.domain.model.sales.SalesSummary;
 

@@ -4,7 +4,7 @@ import com.bullit.data.adapter.driven.jpa.SaleJpaRepository;
 import com.bullit.domain.error.NotFoundException;
 import com.bullit.domain.error.DatabaseInteractionException;
 import com.bullit.domain.model.sales.SalesSummary;
-import com.bullit.domain.port.outbound.reporting.SalesReportingPort;
+import com.bullit.domain.port.driven.reporting.SalesReportingPort;
 import org.springframework.dao.DataAccessException;
 
 import java.math.BigDecimal;

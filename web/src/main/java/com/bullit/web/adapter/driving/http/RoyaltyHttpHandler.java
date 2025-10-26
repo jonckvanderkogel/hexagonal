@@ -1,6 +1,6 @@
 package com.bullit.web.adapter.driving.http;
 
-import com.bullit.domain.port.inbound.RoyaltyServicePort;
+import com.bullit.domain.port.driving.RoyaltyServicePort;
 import com.bullit.web.adapter.driving.http.Response.RoyaltyReportResponse;
 import com.bullit.web.adapter.driving.http.util.HttpUtil;
 import jakarta.servlet.ServletException;

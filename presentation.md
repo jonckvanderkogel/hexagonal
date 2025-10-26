@@ -1,61 +1,164 @@
-# Hexagonal Architecture – From Layered to Ports & Adapters
+# Hexagonal Architecture: Designing for Change
 
-**Audience**: Java team migrating a legacy WebSphere app to Spring Boot, wishing to keep frameworks at the edges.
+> “The Universe operates on a basic principle of economics: everything has its cost. We pay to create our future, we pay 
+> for the mistakes of the past. We pay for every change we make … and we pay just as dearly if we refuse to change.”
 
-**Speaker goal**: Show why classic layered architecture hurts over time, then introduce Hexagonal (Ports & Adapters) using the provided sample repo as a running example.
+*Brian Herbert & Kevin J. Anderson, Dune: House Harkonnen*
 
 ---
 
 ## Agenda
 
-1. Baseline: Classic layered architecture
-2. Where layered architecture shows cracks
-3. Hexagonal architecture: core ideas
-4. Mapping hexagonal concepts to this repo
-5. End-to-end request flow (Create/Get Author)
-6. Guardrails: Architecture tests & boundaries
-7. Practical migration from WebSphere → Spring Boot
-8. Demo script (run/tests)
-9. Trade-offs & FAQs
+Agenda
+1.  Costs of change
+2.	Hexagonal architecture: core ideas
+3.	Hexagonal in practice: rules, modules, boundaries
+4.	Mapping to the sample repo
+5.	Testing in Hexagonal architecture
+6.	When to choose Hexagonal
 
 ---
 
-## 1) Baseline: Layered Architecture
+## 1) Costs of change
+* Long-lived systems pay a “change tax”: frameworks evolve, infra moves, UIs shift, databases swap.
+* Organize code so mistakes are cheap and technology migrations don’t cascade.
+* Decouple your core logic from infrastructure so testing becomes easy without (too much) mocking.
 
-**Typical layers**
+**Key principle**: Make the cost of doing the right thing lower than the cost of doing the wrong thing.
 
-* Controller / Web
-* Service / Business
-* Repository / Persistence
-* Database
+---
 
-**Properties**
+## 2) Hexagonal architecture: core ideas
 
-* Dependencies point downward only (Web → Service → Repo → DB).
-* Framework types often live in the lower layers and are exposed upward.
+> Allow an application to equally be driven by users, programs, automated test or batch scripts, and to be developed and
+> tested in isolation from its eventual run-time devices and databases.
+
+*Alistair Cockburn, “Hexagonal architecture“*
+
+- **Origin**: Alistair Cockburn’s “Ports & Adapters”.
+- **Center**: Core business logic (domain + use cases) is independent from external dependencies, such as frameworks, 
+databases, HTTP/message brokers, or UI. This makes the core logic easier to test and maintain.
+- **Ports**: Abstract interfaces describing what the core needs (driven/outbound) or offers (driving/inbound).
+  - **Driving**: specifies how the domain can be used.
+  - **Driven**: specifies what functionality the domain needs.
+- **Adapters**: Technology-specific implementations (HTTP controllers, JPA, messaging, CLI).
+  - **Driving**: converts requests from a specific technology to the domain.
+  - **Driven**: converts calls from the domain into specific technology terms.
+- **Dependency rule**: Edges depend on the center, never the other way around.
+
+---
+
+## 3) Hexagonal in practice: rules, modules, boundaries
+
+**Rules of thumb**
+1.	Domain knows business language and invariants; no imports from Spring/JPA/HTTP.
+2.	Use cases orchestrate workflows through ports; they depend only on domain + ports.
+3.	Adapters translate: HTTP ↔ DTOs ↔ domain; JPA ↔ entities ↔ domain.
+4.	Composition root (Spring Boot) wires adapters to ports.
+5.	Contracts (ports) encode change boundaries.
+
+**Typical module layout**
+* domain: entities/value objects, errors, ports (interfaces).
+* core: use case implementations (pure Java).
+* web: HTTP adapter (handlers/controllers, DTOs, error mapping).
+* data: persistence adapter (JPA entities/repos, mappers).
+* application: Spring Boot wiring, routes, config.
+
+---
+
+## 4) Mapping to the sample repo
+
+* Driving adapter: AuthorHttpHandler, RoyaltyHttpHandler (web).
+* Driving port: LibraryServicePort, RoyaltyServicePort (domain defines).
+* Use cases: LibraryServiceImpl, RoyaltyServiceImpl (core implements).
+* Driven ports: AuthorRepositoryPort, BookRepositoryPort, SaleRepositoryPort, SalesReportingPort (domain defines).
+* Driven adapters: AuthorRepositoryAdapter, BookRepositoryAdapter, SaleRepositoryAdapter, SalesReportingAdapter (data implements).
+* Wiring: BeansConfig (application) connects adapters ↔ ports, installs error filter, routes.
 
 ```mermaid
-flowchart TD
-  Web[Web / Controller] --> Service[Service]
-  Service --> Repo[Repository]
-  Repo --> DB[(DB)]
+flowchart TB
+%% Core (owns ports; use cases implement inbound ports and use outbound ports)
+    subgraph Core["Core (Domain + Use Cases)"]
+        D["Domain Model"]
+        IP["«driving ports»\nLibraryServicePort, RoyaltyServicePort"]
+        UC["Use Cases (implement driving ports)\nLibraryServiceImpl, RoyaltyServiceImpl"]
+        OP["«driven ports»\nAuthorRepositoryPort, BookRepositoryPort,\nSaleRepositoryPort, SalesReportingPort"]
+    end
+
+%% Driving adapters call driving ports
+    subgraph Driving["Driving Adapters (inbound)"]
+        HTTP["HTTP / Web\nAuthorHttpHandler, RoyaltyHttpHandler"]
+        CLI["CLI / Scheduler / MQ Consumers"]
+    end
+
+%% Driven adapters implement driven ports
+    subgraph Driven["Driven Adapters (outbound)"]
+        JPA["JPA / DB\nAuthorRepositoryAdapter, BookRepositoryAdapter,\nSaleRepositoryAdapter, SalesReportingAdapter"]
+        MQ["Message Broker Adapter"]
+        EXT["External APIs Adapter"]
+    end
+
+%% Direction of dependencies/calls
+    HTTP --> IP
+    CLI  --> IP
+    IP   --> UC
+    UC   --> OP
+    OP   --> JPA
+    OP   --> MQ
+    OP   --> EXT
 ```
 
-**Strengths**
+**20,000 feet overview**
+```mermaid
+flowchart LR
+  dom[domain]
+  cor[core]
+  web[web]
+  data[data]
+  app[application]
 
-* Easy to start, low ceremony.
-* Well known to Java teams.
-
-**Weaknesses** (explored next)
+  cor --> dom
+  web --> dom
+  data --> dom
+  app --> cor
+  app --> web
+  app --> data
+```
 
 ---
 
-## 2) Where Layered Architecture Shows Cracks
+## 5) Testing in Hexagonal architecture
 
-### 2.1 Framework(s) leaks through the layers
+* **ArchUnit tests** enforce: domain/core cannot import Spring/JPA/Web. Web/data cannot depend on Spring Boot.
+* **Integration tests** in application module with Testcontainers + DBUnit.
+* **Unit tests** run fast in core/web/data modules with mocks.
 
-* Lower-layer changes ripple upward (e.g., repository now returns Spring Data `Page<T>`), forcing upper layers to import those types or write glue everywhere.
-* **Example (Java):**
+### 5.1) What to test in each module
+* domain (unit tests): validate domain stays independent of any frameworks.
+* core (unit tests): business logic validation and port orchestration.
+* web (unit tests): DTO↔domain & error mapping.
+* data (unit tests): entity↔domain mappers.
+* application (integration tests): Spring Boot + Testcontainers Postgres + Liquibase; hit real HTTP routes and DB.
+
+---
+
+## 6) When to choose Hexagonal
+
+Great fit when:
+* The system is long-lived
+* The system is non-trivial
+
+Long-lived and non-trivial services need to be ready to anticipate changes to underlying frameworks and other technology.
+
+When a service is small or you expect to retire a service within the current hype-cycle then maybe Hexagonal is overkill.
+In such cases a traditional layered architecture could be the better approach. 
+
+### 6.1) Where Layered Architecture Shows Cracks
+
+Lower-layer changes ripple upward (e.g., repository now returns Spring Data `Page<T>`), forcing upper layers to import 
+those types or write glue everywhere.
+
+**Example:**
 
 ```java
 // Repository layer change introduces Spring Data types
@@ -100,174 +203,6 @@ class AuthorController {
 
 * **Consequence:** A persistence-layer decision (Spring Data pagination) ripples up into service and web signatures, increasing blast radius for change.
 
-### 2.3 Testing drag
-
-* Because services depend on framework types, unit tests often require more ceremony than you would want.
-
-### 2.4 Architecture doesn’t enforce boundaries
-
-* You *can* be disciplined in layered architecture, but the architecture doesn’t protect you. Short-term convenience often wins unless boundaries are continuously policed.
 
 ---
 
-## 3) Hexagonal Architecture (Ports & Adapters)
-
-**Core ideas**
-
-* Domain & use cases in the center.
-* Ports define what the core needs/offers.
-* Adapters implement ports for technologies (HTTP, DB, MQ).
-* Dependency rule: edges depend on the center, never the other way around.
-
-```mermaid
-flowchart TB
-  subgraph Core["Core (Domain + Use Cases)"]
-    D["Domain Model"]
-    U["Use Cases"]
-  end
-
-  subgraph Driving["Driving Adapters"]
-    HTTP["HTTP / Web"]
-  end
-
-  subgraph Driven["Driven Adapters"]
-    JPA["JPA / DB"]
-  end
-
-  HTTP --> U
-  U --> JPA
-```
-
-**Benefits**
-
-* Protects domain from frameworks.
-* Migration easier (swap adapters).
-* Tests run fast without containers/frameworks.
-* Architecture makes the **easy path the correct one**.
-
----
-
-## 4) Sample Repo: Mapping Modules
-
-* **domain**: business language & invariants (`Author`, `AppError`, `AuthorServicePort`).
-* **core**: orchestrates use cases (`AuthorServiceImpl`).
-* **web**: HTTP adapter (`AuthorHttpHandler`, DTOs, error mapping).
-* **data**: persistence adapter (`AuthorRepositoryAdapter`, JPA entity, mapper).
-* **application**: Spring Boot composition root (wiring beans & routes).
-
-```mermaid
-flowchart LR
-  dom[domain]
-  cor[core]
-  web[web]
-  data[data]
-  app[application]
-
-  cor --> dom
-  web --> dom
-  data --> dom
-  app --> cor
-  app --> web
-  app --> data
-```
-
----
-
-## 5) End-to-End Flow (Create Author)
-
-1. `web.AuthorHttpHandler` parses JSON → calls `AuthorServicePort.create`.
-2. `core.AuthorServiceImpl` validates domain object → calls `AuthorRepositoryPort.save`.
-3. `data.AuthorRepositoryAdapter` saves via JPA → maps back to domain.
-4. Errors mapped through sealed `AppError` hierarchy to HTTP codes.
-
-**Key:** `Author` enforces invariants. `AuthorServiceImpl` orchestrates use cases. Domain never imports JPA or Spring.
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Client as Client
-    participant Web as "HTTP / Web (AuthorHttpHandler)"
-    participant Core as "Core Use Case (AuthorServiceImpl)"
-    participant Data as "Data Adapter (AuthorRepositoryAdapter)"
-    participant Repo as "JPA Repository (AuthorJpaRepository)"
-    participant DB as "PostgreSQL"
-
-    Client->>Web: POST /authors { name }
-    Web->>Core: create(name)
-    Core->>Core: Author.createNew(name) // validate & construct
-    alt Validation fails
-        Core-->>Web: Either.left(ValidationError)
-        Web-->>Client: 400 Bad Request { error }
-    else Validation OK
-        Core->>Data: save(Author)
-        Data->>Repo: save(AuthorEntity)
-        Repo->>DB: INSERT authors(...)
-        DB-->>Repo: OK (AuthorEntity)
-        Repo-->>Data: AuthorEntity
-        Data->>Data: map to domain (Author)
-        Data-->>Core: Either.right(Author)
-        Core-->>Web: Either.right(Author)
-        Web-->>Client: 201 Created { id, name }
-    end
-
-    note over Web,Data: Errors mapped via AppError → HTTP\nValidation→400, NotFound→404, Persistence→500
-```
----
-
-## 6) Guardrails
-
-* **ArchUnit tests** enforce: domain/core cannot import Spring/JPA/Web. Web/data cannot depend on Spring Boot.
-* **Integration tests** in application with Testcontainers + DBUnit.
-* **Unit tests** run fast in core/web/data modules with mocks.
-
----
-
-## 7) Migration Path: WebSphere → Spring Boot
-
-* Existing app avoided WebSphere types in logic: good starting point.
-* Apply same discipline: keep Spring at edges.
-* Define ports first, then add adapters.
-* Composition root (Spring Boot module) wires everything.
-* Strangler pattern possible for gradual migration.
-
----
-
-## 8) Demo Script
-
-**Start DB**
-
-```bash
-docker compose up -d
-```
-
-**Run app**
-
-```bash
-mvn -f application spring-boot:run
-```
-
-**Create author**
-
-```bash
-curl -i -X POST localhost:8080/authors -d '{"name": "Douglas Adams"}' -H 'Content-Type: application/json'
-```
-
-**Get author**
-
-```bash
-curl -i localhost:8080/authors/<id>
-```
-
----
-
-## 9) Trade-offs & FAQs
-
-* **Layered faster for tiny throwaway microservices**: low ceremony.
-* **But as services grow**, hexagonal pays off by enforcing maintainability.
-* **Architecture discipline**: layered relies on self-restraint; hexagonal makes the safe path the natural one.
-
----
-
-### Closing
-
-Layered architecture served well in the microservice “fast and disposable” era. But as services have grown larger and stickier, the cost of framework leakage and migration drag hurts. Hexagonal makes boundaries explicit and pushes frameworks to the edges — making the right design the easy design.

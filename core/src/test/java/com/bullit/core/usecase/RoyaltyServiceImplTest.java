@@ -6,8 +6,8 @@ import com.bullit.domain.model.royalty.RoyaltyTier;
 import com.bullit.domain.model.royalty.Sale;
 import com.bullit.domain.model.royalty.TierBreakdown;
 import com.bullit.domain.model.sales.SalesSummary;
-import com.bullit.domain.port.outbound.SaleRepositoryPort;
-import com.bullit.domain.port.outbound.reporting.SalesReportingPort;
+import com.bullit.domain.port.driven.SaleRepositoryPort;
+import com.bullit.domain.port.driven.reporting.SalesReportingPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

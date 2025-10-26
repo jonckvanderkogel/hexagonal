@@ -3,8 +3,8 @@ package com.bullit.core.usecase;
 import com.bullit.domain.error.DatabaseInteractionException;
 import com.bullit.domain.model.library.Author;
 import com.bullit.domain.model.library.Book;
-import com.bullit.domain.port.outbound.AuthorRepositoryPort;
-import com.bullit.domain.port.outbound.BookRepositoryPort;
+import com.bullit.domain.port.driven.AuthorRepositoryPort;
+import com.bullit.domain.port.driven.BookRepositoryPort;
 import org.junit.jupiter.api.Test;
 
 import static java.util.Collections.emptyList;

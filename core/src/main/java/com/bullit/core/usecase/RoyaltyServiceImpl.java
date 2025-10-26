@@ -4,9 +4,9 @@ import com.bullit.domain.model.royalty.RoyaltyScheme;
 import com.bullit.domain.model.royalty.RoyaltyTier;
 import com.bullit.domain.model.royalty.Sale;
 import com.bullit.domain.model.royalty.TierBreakdown;
-import com.bullit.domain.port.inbound.RoyaltyServicePort;
-import com.bullit.domain.port.outbound.SaleRepositoryPort;
-import com.bullit.domain.port.outbound.reporting.SalesReportingPort;
+import com.bullit.domain.port.driving.RoyaltyServicePort;
+import com.bullit.domain.port.driven.SaleRepositoryPort;
+import com.bullit.domain.port.driven.reporting.SalesReportingPort;
 import com.bullit.domain.model.royalty.RoyaltyReport;
 import com.bullit.domain.model.sales.SalesSummary;
 
