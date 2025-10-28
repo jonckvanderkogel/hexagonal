@@ -13,7 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static java.util.Collections.emptyList;
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -43,11 +43,14 @@ final class AuthorHttpHandlerTest extends AbstractHttpTest {
         var res = errorFilter.filter(req, handler::createAuthor);
 
         var body = writeToString(res);
-        assertThat(status(res)).isEqualTo(201);
-        assertThat(body).contains("\"id\":\"" + id + "\"");
-        assertThat(body).contains("\"firstName\":\"Douglas\"");
-        assertThat(body).contains("\"lastName\":\"Adams\"");
-        assertThat(body).contains("\"insertedAt\":\"2024-01-01T00:00:00Z\"");
+
+        assertSoftly(s -> {
+            s.assertThat(status(res)).isEqualTo(201);
+            s.assertThat(body).contains("\"id\":\"" + id + "\"");
+            s.assertThat(body).contains("\"firstName\":\"Douglas\"");
+            s.assertThat(body).contains("\"lastName\":\"Adams\"");
+            s.assertThat(body).contains("\"insertedAt\":\"2024-01-01T00:00:00Z\"");
+        });
     }
 
     @Test
@@ -59,9 +62,12 @@ final class AuthorHttpHandlerTest extends AbstractHttpTest {
         var res = errorFilter.filter(req, handler::createAuthor);
 
         var body = writeToString(res);
-        assertThat(status(res)).isEqualTo(400);
-        assertThat(body).contains("\"error\":\"Invalid request:");
-        verifyNoInteractions(service);
+
+        assertSoftly(s -> {
+            s.assertThat(status(res)).isEqualTo(400);
+            s.assertThat(body).contains("\"error\":\"Invalid request:");
+            s.check(() -> verifyNoInteractions(service));
+        });
     }
 
     @Test
@@ -71,9 +77,12 @@ final class AuthorHttpHandlerTest extends AbstractHttpTest {
         var res = errorFilter.filter(req, handler::createAuthor);
 
         var body = writeToString(res);
-        assertThat(status(res)).isEqualTo(500);
-        assertThat(body).contains("\"error\":\"Unexpected error\"");
-        verifyNoInteractions(service);
+
+        assertSoftly(s -> {
+            s.assertThat(status(res)).isEqualTo(500);
+            s.assertThat(body).contains("\"error\":\"Unexpected error\"");
+            s.check(() -> verifyNoInteractions(service));
+        });
     }
 
     @Test
@@ -90,10 +99,13 @@ final class AuthorHttpHandlerTest extends AbstractHttpTest {
         var res = errorFilter.filter(req, handler::getAuthorById);
 
         var body = writeToString(res);
-        assertThat(status(res)).isEqualTo(200);
-        assertThat(body).contains("\"id\":\"" + id + "\"");
-        assertThat(body).contains("\"firstName\":\"Arthur\"");
-        assertThat(body).contains("\"lastName\":\"Dent\"");
+
+        assertSoftly(s -> {
+            s.assertThat(status(res)).isEqualTo(200);
+            s.assertThat(body).contains("\"id\":\"" + id + "\"");
+            s.assertThat(body).contains("\"firstName\":\"Arthur\"");
+            s.assertThat(body).contains("\"lastName\":\"Dent\"");
+        });
     }
 
     @Test
@@ -109,7 +121,10 @@ final class AuthorHttpHandlerTest extends AbstractHttpTest {
         var res = errorFilter.filter(req, handler::getAuthorById);
 
         var body = writeToString(res);
-        assertThat(status(res)).isEqualTo(404);
-        assertThat(body).contains("\"error\":\"Invalid resource identifier: not found\"");
+
+        assertSoftly(s -> {
+            s.assertThat(status(res)).isEqualTo(404);
+            s.assertThat(body).contains("\"error\":\"Invalid resource identifier: not found\"");
+        });
     }
 }

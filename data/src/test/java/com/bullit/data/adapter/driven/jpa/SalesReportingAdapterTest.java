@@ -13,8 +13,8 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static java.math.BigDecimal.ZERO;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -42,13 +42,13 @@ final class SalesReportingAdapterTest {
 
         when(jpa.sumForAuthorBetween(authorId, from, to)).thenReturn(agg);
 
-        // When
-        SalesSummary s = adapter.monthlyAuthorSales(authorId, ym);
+        SalesSummary summary = adapter.monthlyAuthorSales(authorId, ym);
 
-        // Then
-        assertThat(s.getUnits()).isEqualTo(187L);
-        assertThat(s.getGrossRevenue()).isEqualByComparingTo(new BigDecimal("921.35"));
-        verify(jpa, times(1)).sumForAuthorBetween(authorId, from, to);
+        assertSoftly(s -> {
+            s.assertThat(summary.getUnits()).isEqualTo(187L);
+            s.assertThat(summary.getGrossRevenue()).isEqualByComparingTo(new BigDecimal("921.35"));
+            s.check(() -> verify(jpa, times(1)).sumForAuthorBetween(authorId, from, to));
+        });
     }
 
     @Test
@@ -68,11 +68,13 @@ final class SalesReportingAdapterTest {
 
         when(jpa.sumForAuthorBetween(authorId, from, to)).thenReturn(agg);
 
-        SalesSummary s = adapter.monthlyAuthorSales(authorId, ym);
+        SalesSummary summary = adapter.monthlyAuthorSales(authorId, ym);
 
-        assertThat(s.getUnits()).isEqualTo(0L);
-        assertThat(s.getGrossRevenue()).isEqualByComparingTo(ZERO);
-        verify(jpa, times(1)).sumForAuthorBetween(authorId, from, to);
+        assertSoftly(s -> {
+            s.assertThat(summary.getUnits()).isEqualTo(0L);
+            s.assertThat(summary.getGrossRevenue()).isEqualByComparingTo(ZERO);
+            s.check(() -> verify(jpa, times(1)).sumForAuthorBetween(authorId, from, to));
+        });
     }
 
     @Test

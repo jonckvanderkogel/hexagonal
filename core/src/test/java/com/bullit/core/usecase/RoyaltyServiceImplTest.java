@@ -8,6 +8,7 @@ import com.bullit.domain.model.royalty.TierBreakdown;
 import com.bullit.domain.model.sales.SalesSummary;
 import com.bullit.domain.port.driven.SaleRepositoryPort;
 import com.bullit.domain.port.driven.reporting.SalesReportingPort;
+import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -20,8 +21,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static java.math.BigDecimal.ZERO;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -69,20 +70,22 @@ final class RoyaltyServiceImplTest {
 
         RoyaltyReport rep = service.generateMonthlyReport(author, period);
 
-        assertThat(rep.getAuthorId()).isEqualTo(author);
-        assertThat(rep.getPeriod()).isEqualTo(period);
-        assertThat(rep.getUnits()).isEqualTo(250);
-        assertThat(rep.getGrossRevenue()).isEqualByComparingTo("1000");
-        assertThat(rep.getRoyaltyDue()).isEqualByComparingTo("130");
-        assertThat(rep.getEffectiveRate()).isEqualByComparingTo("0.13");
-        assertThat(rep.getMinimumGuarantee()).isEqualByComparingTo("0");
+        assertSoftly(s -> {
+            s.assertThat(rep.getAuthorId()).isEqualTo(author);
+            s.assertThat(rep.getPeriod()).isEqualTo(period);
+            s.assertThat(rep.getUnits()).isEqualTo(250);
+            s.assertThat(rep.getGrossRevenue()).isEqualByComparingTo("1000");
+            s.assertThat(rep.getRoyaltyDue()).isEqualByComparingTo("130");
+            s.assertThat(rep.getEffectiveRate()).isEqualByComparingTo("0.13");
+            s.assertThat(rep.getMinimumGuarantee()).isEqualByComparingTo("0");
 
-        List<TierBreakdown> tiers = rep.getBreakdown();
-        assertThat(tiers).hasSize(3);
+            List<TierBreakdown> tiers = rep.getBreakdown();
+            s.assertThat(tiers).hasSize(3);
 
-        assertTier(tiers.get(0), 100, "0.10", "40");   // 1000 * (100/250) * 0.10 = 40
-        assertTier(tiers.get(1), 150, "0.15", "90");   // 1000 * (150/250) * 0.15 = 90
-        assertTier(tiers.get(2),   0, "0.20", "0");
+            assertTier(tiers.get(0), 100, "0.10", "40", s);   // 1000 * (100/250) * 0.10 = 40
+            assertTier(tiers.get(1), 150, "0.15", "90", s);   // 1000 * (150/250) * 0.15 = 90
+            assertTier(tiers.get(2), 0, "0.20", "0", s);
+        });
     }
 
     @Test
@@ -97,15 +100,17 @@ final class RoyaltyServiceImplTest {
 
         RoyaltyReport rep = service.generateMonthlyReport(author, period);
 
-        assertThat(rep.getRoyaltyDue()).isEqualByComparingTo("320");
-        assertThat(rep.getEffectiveRate()).isEqualByComparingTo("0.16");
+        assertSoftly(s -> {
+            s.assertThat(rep.getRoyaltyDue()).isEqualByComparingTo("320");
+            s.assertThat(rep.getEffectiveRate()).isEqualByComparingTo("0.16");
 
-        List<TierBreakdown> tiers = rep.getBreakdown();
-        assertThat(tiers).hasSize(3);
+            List<TierBreakdown> tiers = rep.getBreakdown();
+            s.assertThat(tiers).hasSize(3);
 
-        assertTier(tiers.get(0), 100, "0.10", "40");    // 2000*(100/500)*0.10 = 40
-        assertTier(tiers.get(1), 200, "0.15", "120");   // 2000*(200/500)*0.15 = 120
-        assertTier(tiers.get(2), 200, "0.20", "160");   // 2000*(200/500)*0.20 = 160
+            assertTier(tiers.get(0), 100, "0.10", "40", s);    // 2000*(100/500)*0.10 = 40
+            assertTier(tiers.get(1), 200, "0.15", "120", s);   // 2000*(200/500)*0.15 = 120
+            assertTier(tiers.get(2), 200, "0.20", "160", s);   // 2000*(200/500)*0.20 = 160
+        });
     }
 
     @Test
@@ -121,9 +126,12 @@ final class RoyaltyServiceImplTest {
 
         RoyaltyReport rep = service.generateMonthlyReport(author, period);
 
-        assertThat(rep.getRoyaltyDue()).isEqualByComparingTo("200");
-        assertThat(rep.getEffectiveRate()).isEqualByComparingTo("0.20");
-        assertThat(rep.getMinimumGuarantee()).isEqualByComparingTo("200");
+        assertSoftly(s -> {
+            s.assertThat(rep.getRoyaltyDue()).isEqualByComparingTo("200");
+            s.assertThat(rep.getEffectiveRate()).isEqualByComparingTo("0.20");
+            s.assertThat(rep.getMinimumGuarantee()).isEqualByComparingTo("200");
+        });
+
     }
 
     @Test
@@ -140,10 +148,12 @@ final class RoyaltyServiceImplTest {
 
         RoyaltyReport rep = service.generateMonthlyReport(author, period);
 
-        assertThat(rep.getRoyaltyDue()).isEqualByComparingTo("180");
-        assertThat(rep.getEffectiveRate()).isEqualByComparingTo("0.12");
-        assertThat(rep.getBreakdown()).hasSize(1);
-        assertTier(rep.getBreakdown().getFirst(), 300, "0.12", "180");
+        assertSoftly(s -> {
+            s.assertThat(rep.getRoyaltyDue()).isEqualByComparingTo("180");
+            s.assertThat(rep.getBreakdown()).hasSize(1);
+            s.assertThat(rep.getEffectiveRate()).isEqualByComparingTo("0.12");
+            assertTier(rep.getBreakdown().getFirst(), 300, "0.12", "180", s);
+        });
     }
 
     @Test
@@ -155,15 +165,22 @@ final class RoyaltyServiceImplTest {
 
         RoyaltyReport rep = service.generateMonthlyReport(author, period);
 
-        assertThat(rep.getUnits()).isEqualTo(0);
-        assertThat(rep.getGrossRevenue()).isEqualByComparingTo("0");
-        assertThat(rep.getRoyaltyDue()).isEqualByComparingTo("50"); // MG kicks in
-        assertThat(rep.getEffectiveRate()).isEqualByComparingTo("0"); // gross=0 → rate 0
-        assertThat(rep.getBreakdown())
-                .allSatisfy(b -> {
-                    assertThat(b.getUnitsInTier()).isEqualTo(0);
-                    assertThat(b.getRoyaltyAmount()).isEqualByComparingTo("0");
-                });
+        assertSoftly(s -> {
+            s.assertThat(rep.getUnits()).isEqualTo(0);
+            s.assertThat(rep.getGrossRevenue()).isEqualByComparingTo("0");
+            s.assertThat(rep.getRoyaltyDue()).isEqualByComparingTo("50"); // MG kicks in
+            s.assertThat(rep.getEffectiveRate()).isEqualByComparingTo("0"); // gross=0 → rate 0
+            s.assertThat(rep.getBreakdown().size()).isEqualTo(3);
+            rep.getBreakdown().forEach(b -> {
+                s.assertThat(b.getUnitsInTier())
+                        .as("unitsInTier for %s", b)
+                        .isEqualTo(0);
+
+                s.assertThat(b.getRoyaltyAmount())
+                        .as("royaltyAmount for %s", b)
+                        .isEqualByComparingTo("0");
+            });
+        });
     }
 
     @Test
@@ -176,7 +193,7 @@ final class RoyaltyServiceImplTest {
 
         RoyaltyScheme scheme = RoyaltyScheme.of(
                 List.of(
-                        RoyaltyTier.of(50,  new BigDecimal("0.07")),
+                        RoyaltyTier.of(50, new BigDecimal("0.07")),
                         RoyaltyTier.of(150, new BigDecimal("0.11")),
                         RoyaltyTier.of(Long.MAX_VALUE, new BigDecimal("0.17"))
                 ),
@@ -186,42 +203,55 @@ final class RoyaltyServiceImplTest {
 
         RoyaltyReport rep = service.generateMonthlyReport(author, period);
 
-        assertThat(rep.getRoyaltyDue())
-                .isCloseTo(new BigDecimal("92.58"), within(new BigDecimal("0.01")));
-        assertThat(rep.getEffectiveRate())
-                .isCloseTo(new BigDecimal("0.0937"), within(new BigDecimal("0.01")));
+        assertSoftly(s -> {
+            s.assertThat(rep.getRoyaltyDue())
+                    .isCloseTo(new BigDecimal("92.58"), within(new BigDecimal("0.01")));
+            s.assertThat(rep.getEffectiveRate())
+                    .isCloseTo(new BigDecimal("0.0937"), within(new BigDecimal("0.01")));
 
-        List<TierBreakdown> tiers = rep.getBreakdown();
-        assertThat(tiers).hasSize(3);
-        assertThat(tiers.get(0).getUnitsInTier()).isEqualTo(50);
-        assertThat(tiers.get(1).getUnitsInTier()).isEqualTo(73);
-        assertThat(tiers.get(2).getUnitsInTier()).isEqualTo(0);
+            List<TierBreakdown> tiers = rep.getBreakdown();
+
+            s.assertThat(tiers).hasSize(3);
+            s.assertThat(tiers.get(0).getUnitsInTier()).isEqualTo(50);
+            s.assertThat(tiers.get(1).getUnitsInTier()).isEqualTo(73);
+            s.assertThat(tiers.get(2).getUnitsInTier()).isEqualTo(0);
+        });
+
     }
 
-    private static void assertTier(TierBreakdown b, long units, String rate, String royalty) {
-        assertThat(b.getUnitsInTier()).isEqualTo(units);
-        assertThat(b.getAppliedRate()).isEqualByComparingTo(rate);
-        assertThat(b.getRoyaltyAmount()).isEqualByComparingTo(royalty);
+    private static void assertTier(
+            TierBreakdown b,
+            long units,
+            String rate,
+            String royalty,
+            SoftAssertions s
+    ) {
+        s.assertThat(b.getUnitsInTier()).isEqualTo(units);
+        s.assertThat(b.getAppliedRate()).isEqualByComparingTo(rate);
+        s.assertThat(b.getRoyaltyAmount()).isEqualByComparingTo(royalty);
     }
 
     @Test
     void addSale_persists_viaSaleRepository() {
         var saleId = UUID.randomUUID();
-        var bookId   = UUID.randomUUID();
+        var bookId = UUID.randomUUID();
         var units = 10;
         var amountEur = new BigDecimal("100.1");
         var sold = Instant.parse("2024-01-05T00:00:00Z");
-        var sale   = Sale.rehydrate(saleId, bookId, units, amountEur, sold);
+        var sale = Sale.rehydrate(saleId, bookId, units, amountEur, sold);
         when(saleRepositoryPort.addSale(any(Sale.class))).thenReturn(sale);
 
         var service = new RoyaltyServiceImpl(reporting, saleRepositoryPort, progressiveScheme(), fixed);
 
         var saved = service.createSale(bookId, units, amountEur);
 
-        assertThat(saved.getBookId()).isEqualTo(bookId);
-        assertThat(saved.getUnits()).isEqualTo(units);
-        assertThat(saved.getAmountEur()).isEqualTo(amountEur);
-        assertThat(saved.getSoldAt()).isEqualTo(sold);
-        verify(saleRepositoryPort, times(1)).addSale(any(Sale.class));
+        assertSoftly(s -> {
+            s.assertThat(saved.getBookId()).isEqualTo(bookId);
+            s.assertThat(saved.getUnits()).isEqualTo(units);
+            s.assertThat(saved.getAmountEur()).isEqualTo(amountEur);
+            s.assertThat(saved.getSoldAt()).isEqualTo(sold);
+
+            s.check(() -> verify(saleRepositoryPort, times(1)).addSale(any(Sale.class)));
+        });
     }
 }

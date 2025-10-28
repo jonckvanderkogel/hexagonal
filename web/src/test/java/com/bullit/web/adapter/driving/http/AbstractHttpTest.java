@@ -15,8 +15,12 @@ import org.springframework.web.servlet.function.ServerResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.regex.Pattern;
 
 public abstract class AbstractHttpTest {
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{([^}]+)}");
+
     protected final List<HttpMessageConverter<?>> converters =
             List.of(new MappingJackson2HttpMessageConverter(
                     JsonMapper.builder()
@@ -39,11 +43,9 @@ public abstract class AbstractHttpTest {
     }
 
     private static String pathTemplateWithValues(String template, Map<String, String> vars) {
-        var p = template;
-        for (var e : vars.entrySet()) {
-            p = p.replace("{" + e.getKey() + "}", e.getValue());
-        }
-        return p;
+        return PLACEHOLDER
+                .matcher(template)
+                .replaceAll(mr -> Objects.toString(vars.get(mr.group(1)), mr.group(0)));
     }
 
     protected int status(ServerResponse response) {

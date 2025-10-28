@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 @SpringBootTest(webEnvironment = RANDOM_PORT)
@@ -59,25 +60,27 @@ class AuthorHttpIT extends AbstractIntegrationTest {
         var createReq = Map.of("firstName", "Douglas", "lastName", "Adams");
         ResponseEntity<AuthorResponse> created = rest.postForEntity(base("/authors"), createReq, AuthorResponse.class);
 
-        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(created.getBody()).isNotNull();
-        var id = created.getBody().id();
-        assertThat(created.getBody().firstName()).isEqualTo("Douglas");
-        assertThat(created.getBody().lastName()).isEqualTo("Adams");
+        assertSoftly(s -> {
+            s.assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+            s.assertThat(created.getBody()).isNotNull();
+            var id = created.getBody().id();
+            s.assertThat(created.getBody().firstName()).isEqualTo("Douglas");
+            s.assertThat(created.getBody().lastName()).isEqualTo("Adams");
 
-        ResponseEntity<AuthorResponse> got = rest.getForEntity(base("/authors/{id}"), AuthorResponse.class, id);
-        assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(got.getBody()).isNotNull();
+            ResponseEntity<AuthorResponse> got = rest.getForEntity(base("/authors/{id}"), AuthorResponse.class, id);
+            s.assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
+            s.assertThat(got.getBody()).isNotNull();
 
-        assertThat(got.getBody().id()).isEqualTo(id);
-        assertThat(got.getBody().firstName()).isEqualTo("Douglas");
-        assertThat(got.getBody().lastName()).isEqualTo("Adams");
-        assertThat(got.getBody().books()).isEmpty();
-        assertThat(got.getBody().insertedAt())
-                .isEqualTo(
-                        LocalDateTime.of(2024, 8, 13, 9, 0, 0)
-                                .toInstant(ZoneOffset.UTC)
-                );
+            s.assertThat(got.getBody().id()).isEqualTo(id);
+            s.assertThat(got.getBody().firstName()).isEqualTo("Douglas");
+            s.assertThat(got.getBody().lastName()).isEqualTo("Adams");
+            s.assertThat(got.getBody().books()).isEmpty();
+            s.assertThat(got.getBody().insertedAt())
+                    .isEqualTo(
+                            LocalDateTime.of(2024, 8, 13, 9, 0, 0)
+                                    .toInstant(ZoneOffset.UTC)
+                    );
+        });
     }
 
     @Test
@@ -85,17 +88,20 @@ class AuthorHttpIT extends AbstractIntegrationTest {
         var existingId = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
         ResponseEntity<AuthorResponse> got = rest.getForEntity(base("/authors/{id}"), AuthorResponse.class, existingId);
-        assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(got.getBody()).isNotNull();
-        assertThat(got.getBody().id()).isEqualTo(existingId.toString());
-        assertThat(got.getBody().firstName()).isEqualTo("Preloaded");
-        assertThat(got.getBody().lastName()).isEqualTo("ViaDBUnit");
-        assertThat(got.getBody().books()).extracting(BookResponse::title).contains("Preloaded Book");
-        assertThat(got.getBody().insertedAt())
-                .isEqualTo(
-                        LocalDateTime.of(2024, 1, 1, 0, 0, 0)
-                                .toInstant(ZoneOffset.UTC)
-                );
+
+        assertSoftly(s -> {
+            s.assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
+            s.assertThat(got.getBody()).isNotNull();
+            s.assertThat(got.getBody().id()).isEqualTo(existingId.toString());
+            s.assertThat(got.getBody().firstName()).isEqualTo("Preloaded");
+            s.assertThat(got.getBody().lastName()).isEqualTo("ViaDBUnit");
+            s.assertThat(got.getBody().books()).extracting(BookResponse::title).contains("Preloaded Book");
+            s.assertThat(got.getBody().insertedAt())
+                    .isEqualTo(
+                            LocalDateTime.of(2024, 1, 1, 0, 0, 0)
+                                    .toInstant(ZoneOffset.UTC)
+                    );
+        });
     }
 
     @Test
@@ -103,9 +109,12 @@ class AuthorHttpIT extends AbstractIntegrationTest {
         var missing = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
         ResponseEntity<ErrorResponse> res = rest.getForEntity(base("/authors/{id}"), ErrorResponse.class, missing);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(res.getBody()).isNotNull();
-        assertThat(res.getBody().error()).isNotBlank();
+
+        assertSoftly(s -> {
+            s.assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+            s.assertThat(res.getBody()).isNotNull();
+            s.assertThat(res.getBody().error()).isNotBlank();
+        });
     }
 
     @Test
@@ -117,9 +126,11 @@ class AuthorHttpIT extends AbstractIntegrationTest {
         ResponseEntity<ErrorResponse> res =
                 rest.postForEntity(URI.create(base("/authors")), request, ErrorResponse.class);
 
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(res.getBody()).isNotNull();
-        assertThat(res.getBody().error()).isNotBlank();
+        assertSoftly(s -> {
+            s.assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            s.assertThat(res.getBody()).isNotNull();
+            s.assertThat(res.getBody().error()).isNotBlank();
+        });
     }
 
     @Test
@@ -130,22 +141,24 @@ class AuthorHttpIT extends AbstractIntegrationTest {
         var createReq = Map.of("title", title);
         ResponseEntity<BookResponse> created = rest.postForEntity(base("/authors/{id}/books"), createReq, BookResponse.class, authorId);
 
-        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(created.getBody()).isNotNull();
-        var id = created.getBody().id();
-        assertThat(id).isNotEmpty();
-        assertThat(created.getBody().title()).isEqualTo(title);
-        assertThat(created.getBody().authorId()).isEqualTo(authorId.toString());
-        assertThat(created.getBody().insertedAt())
-                .isEqualTo(
-                        LocalDateTime.of(2024, 8, 13, 9, 0, 0)
-                                .toInstant(ZoneOffset.UTC)
-                );
+        assertSoftly(s -> {
+            s.assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+            s.assertThat(created.getBody()).isNotNull();
+            var id = created.getBody().id();
+            s.assertThat(id).isNotEmpty();
+            s.assertThat(created.getBody().title()).isEqualTo(title);
+            s.assertThat(created.getBody().authorId()).isEqualTo(authorId.toString());
+            s.assertThat(created.getBody().insertedAt())
+                    .isEqualTo(
+                            LocalDateTime.of(2024, 8, 13, 9, 0, 0)
+                                    .toInstant(ZoneOffset.UTC)
+                    );
 
-        ResponseEntity<AuthorResponse> gotAuthor = rest.getForEntity(base("/authors/{id}"), AuthorResponse.class, authorId);
-        assertThat(gotAuthor.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(gotAuthor.getBody()).isNotNull();
-        assertThat(gotAuthor.getBody().books().size()).isEqualTo(2);
+            ResponseEntity<AuthorResponse> gotAuthor = rest.getForEntity(base("/authors/{id}"), AuthorResponse.class, authorId);
+            s.assertThat(gotAuthor.getStatusCode()).isEqualTo(HttpStatus.OK);
+            s.assertThat(gotAuthor.getBody()).isNotNull();
+            s.assertThat(gotAuthor.getBody().books().size()).isEqualTo(2);
+        });
     }
 
     @Test

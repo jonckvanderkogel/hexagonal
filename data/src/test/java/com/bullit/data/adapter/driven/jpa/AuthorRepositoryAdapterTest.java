@@ -12,8 +12,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static java.util.Collections.emptyList;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -33,9 +33,11 @@ final class AuthorRepositoryAdapterTest {
 
         var result = adapter.save(author);
 
-        assertThat(result.getFirstName()).isEqualTo("Trillian");
-        assertThat(result.getLastName()).isEqualTo("Astra");
-        verify(jpa, times(1)).save(any());
+        assertSoftly(s -> {
+            s.assertThat(result.getFirstName()).isEqualTo("Trillian");
+            s.assertThat(result.getLastName()).isEqualTo("Astra");
+            s.check(() -> verify(jpa, times(1)).save(any()));
+        });
     }
 
     @Test
@@ -56,8 +58,10 @@ final class AuthorRepositoryAdapterTest {
 
         var result = adapter.findById(id);
 
-        assertThat(result.getFirstName()).isEqualTo("Ford");
-        assertThat(result.getLastName()).isEqualTo("Prefect");
+        assertSoftly(s -> {
+            s.assertThat(result.getFirstName()).isEqualTo("Ford");
+            s.assertThat(result.getLastName()).isEqualTo("Prefect");
+        });
     }
 
     @Test

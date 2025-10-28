@@ -14,8 +14,8 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -54,14 +54,16 @@ final class SaleRepositoryAdapterTest {
 
         var saved = adapter.addSale(input);
 
-        assertThat(saved.getId()).isEqualTo(saleId);
-        assertThat(saved.getBookId()).isEqualTo(bookId);
-        assertThat(saved.getUnits()).isEqualTo(units);
-        assertThat(saved.getAmountEur()).isEqualTo(amount);
-        assertThat(saved.getSoldAt()).isEqualTo(soldAt);
+        assertSoftly(s -> {
+            s.assertThat(saved.getId()).isEqualTo(saleId);
+            s.assertThat(saved.getBookId()).isEqualTo(bookId);
+            s.assertThat(saved.getUnits()).isEqualTo(units);
+            s.assertThat(saved.getAmountEur()).isEqualTo(amount);
+            s.assertThat(saved.getSoldAt()).isEqualTo(soldAt);
 
-        verify(em, times(1)).createNativeQuery(any(String.class));
-        verify(nativeQuery, times(1)).getSingleResult();
+            s.check(() -> verify(em, times(1)).createNativeQuery(any(String.class)));
+            s.check(() -> verify(nativeQuery, times(1)).getSingleResult());
+        });
     }
 
     @Test

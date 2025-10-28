@@ -12,11 +12,14 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 final class BookRepositoryAdapterTest {
 
@@ -47,13 +50,15 @@ final class BookRepositoryAdapterTest {
 
         var saved = adapter.addBook(domain);
 
-        assertThat(saved.getId()).isEqualTo(bookId);
-        assertThat(saved.getAuthorId()).isEqualTo(authorId);
-        assertThat(saved.getTitle()).isEqualTo("Preloaded Book");
-        assertThat(saved.getInsertedAt()).isEqualTo(inserted);
+        assertSoftly(s -> {
+            s.assertThat(saved.getId()).isEqualTo(bookId);
+            s.assertThat(saved.getAuthorId()).isEqualTo(authorId);
+            s.assertThat(saved.getTitle()).isEqualTo("Preloaded Book");
+            s.assertThat(saved.getInsertedAt()).isEqualTo(inserted);
 
-        verify(em, times(1)).createNativeQuery(any());
-        verify(nativeQuery, times(1)).getSingleResult();
+            s.check(() -> verify(em, times(1)).createNativeQuery(any()));
+            s.check(() -> verify(nativeQuery, times(1)).getSingleResult());
+        });
     }
 
     @Test

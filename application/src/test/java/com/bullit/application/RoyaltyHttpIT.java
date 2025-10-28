@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 @SpringBootTest(webEnvironment = RANDOM_PORT)
@@ -61,32 +62,34 @@ class RoyaltyHttpIT extends AbstractIntegrationTest {
                 rest.getForEntity(base("/authors/{id}/royalties/{period}"),
                         RoyaltyReportResponse.class, authorId, "2025-03");
 
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
-        var body = res.getBody();
-        assertThat(body).isNotNull();
+        assertSoftly(s -> {
+            s.assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+            var body = res.getBody();
+            s.assertThat(body).isNotNull();
 
-        assertThat(body.authorId()).isEqualTo(authorId.toString());
-        assertThat(body.period()).isEqualTo("2025-03");
-        assertThat(body.totalUnits()).isEqualTo(120L);
-        assertThat(body.grossRevenue()).isEqualByComparingTo(new BigDecimal("600.00"));
+            s.assertThat(body.authorId()).isEqualTo(authorId.toString());
+            s.assertThat(body.period()).isEqualTo("2025-03");
+            s.assertThat(body.totalUnits()).isEqualTo(120L);
+            s.assertThat(body.grossRevenue()).isEqualByComparingTo(new BigDecimal("600.00"));
 
-        // Tier breakdown
-        assertThat(body.breakdown()).hasSize(3);
-        assertThat(body.breakdown().getFirst().unitsInTier()).isEqualTo(100L);
-        assertThat(body.breakdown().getFirst().royaltyAmount()).isEqualByComparingTo(new BigDecimal("50.00"));
+            // Tier breakdown
+            s.assertThat(body.breakdown()).hasSize(3);
+            s.assertThat(body.breakdown().getFirst().unitsInTier()).isEqualTo(100L);
+            s.assertThat(body.breakdown().getFirst().royaltyAmount()).isEqualByComparingTo(new BigDecimal("50.00"));
 
-        assertThat(body.breakdown().get(1).unitsInTier()).isEqualTo(20L);
-        assertThat(body.breakdown().get(1).royaltyAmount()).isEqualByComparingTo(new BigDecimal("15.00"));
+            s.assertThat(body.breakdown().get(1).unitsInTier()).isEqualTo(20L);
+            s.assertThat(body.breakdown().get(1).royaltyAmount()).isEqualByComparingTo(new BigDecimal("15.00"));
 
-        assertThat(body.breakdown().get(2).unitsInTier()).isEqualTo(0L);
-        assertThat(body.breakdown().get(2).royaltyAmount()).isEqualByComparingTo(new BigDecimal("0.00"));
+            s.assertThat(body.breakdown().get(2).unitsInTier()).isEqualTo(0L);
+            s.assertThat(body.breakdown().get(2).royaltyAmount()).isEqualByComparingTo(new BigDecimal("0.00"));
 
-        assertThat(body.minimumGuarantee()).isEqualByComparingTo(new BigDecimal("100.00"));
-        assertThat(body.royaltyDue()).isEqualByComparingTo(new BigDecimal("100.00"));
+            s.assertThat(body.minimumGuarantee()).isEqualByComparingTo(new BigDecimal("100.00"));
+            s.assertThat(body.royaltyDue()).isEqualByComparingTo(new BigDecimal("100.00"));
 
-        assertThat(body.effectiveRate())
-                .isGreaterThan(new BigDecimal("0.16"))
-                .isLessThan(new BigDecimal("0.17"));
+            s.assertThat(body.effectiveRate())
+                    .isGreaterThan(new BigDecimal("0.16"))
+                    .isLessThan(new BigDecimal("0.17"));
+        });
     }
 
     @Test
@@ -96,9 +99,11 @@ class RoyaltyHttpIT extends AbstractIntegrationTest {
                 rest.getForEntity(base("/authors/{id}/royalties/{period}"),
                         ErrorResponse.class, missing, "2025-03");
 
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(res.getBody()).isNotNull();
-        assertThat(res.getBody().error()).isNotBlank();
+        assertSoftly(s -> {
+            s.assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+            s.assertThat(res.getBody()).isNotNull();
+            s.assertThat(res.getBody().error()).isNotBlank();
+        });
     }
 
     @Test
@@ -106,16 +111,18 @@ class RoyaltyHttpIT extends AbstractIntegrationTest {
         var createReq = Map.of("bookId", "33333333-3333-3333-3333-333333333333", "units", "100", "amountEur", "550.15");
         ResponseEntity<SaleResponse> created = rest.postForEntity(base("/sale"), createReq, SaleResponse.class);
 
-        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(created.getBody()).isNotNull();
-        assertThat(created.getBody().id()).isNotNull();
-        assertThat(created.getBody().bookId()).isEqualTo(UUID.fromString("33333333-3333-3333-3333-333333333333"));
-        assertThat(created.getBody().amountEur()).isEqualTo("550.15");
-        assertThat(created.getBody().units()).isEqualTo(100);
-        assertThat(created.getBody().soldAt()).isEqualTo(
-                LocalDateTime.of(2024, 8, 13, 9, 0, 0)
-                        .toInstant(ZoneOffset.UTC)
-        );
+        assertSoftly(s -> {
+            s.assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+            s.assertThat(created.getBody()).isNotNull();
+            s.assertThat(created.getBody().id()).isNotNull();
+            s.assertThat(created.getBody().bookId()).isEqualTo(UUID.fromString("33333333-3333-3333-3333-333333333333"));
+            s.assertThat(created.getBody().amountEur()).isEqualTo("550.15");
+            s.assertThat(created.getBody().units()).isEqualTo(100);
+            s.assertThat(created.getBody().soldAt()).isEqualTo(
+                    LocalDateTime.of(2024, 8, 13, 9, 0, 0)
+                            .toInstant(ZoneOffset.UTC)
+            );
+        });
     }
 
     @Test

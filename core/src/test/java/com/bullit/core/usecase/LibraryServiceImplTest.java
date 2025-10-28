@@ -5,12 +5,12 @@ import com.bullit.domain.model.library.Author;
 import com.bullit.domain.model.library.Book;
 import com.bullit.domain.port.driven.AuthorRepositoryPort;
 import com.bullit.domain.port.driven.BookRepositoryPort;
-import org.assertj.core.api.BDDSoftAssertions;
 import org.junit.jupiter.api.Test;
 
 import static java.util.Collections.emptyList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -37,21 +37,22 @@ final class LibraryServiceImplTest {
 
         Author created = service.createAuthor("Douglas", "Adams");
 
-        var softly = new BDDSoftAssertions();
-        softly.then(created.getFirstName()).isEqualTo("Douglas");
-        softly.then(created.getLastName()).isEqualTo("Adams");
-        softly.then(created.getInsertedAt()).isEqualTo(Instant.parse("2024-01-01T00:00:00Z"));
-        softly.assertAll();
-
-        verify(authorRepo, times(1)).save(any(Author.class));
+        assertSoftly(s -> {
+            s.assertThat(created.getFirstName()).isEqualTo("Douglas");
+            s.assertThat(created.getLastName()).isEqualTo("Adams");
+            s.assertThat(created.getInsertedAt()).isEqualTo(Instant.parse("2024-01-01T00:00:00Z"));
+            s.check(() -> verify(authorRepo, times(1)).save(any(Author.class)));
+        });
     }
 
     @Test
     void createAuthor_validationFailure_throws_and_doesNotHitRepo() {
-        assertThatThrownBy(() -> service.createAuthor("", ""))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("required");
-        verifyNoInteractions(authorRepo);
+        assertSoftly(s -> {
+            s.assertThatThrownBy(() -> service.createAuthor("", ""))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Author last name is required; Author first name is required");
+            s.check(() -> verifyNoInteractions(authorRepo));
+        });
     }
 
     @Test
@@ -83,8 +84,12 @@ final class LibraryServiceImplTest {
 
         Book saved = service.addBook(authorId, "H2G2");
 
-        assertThat(saved.getAuthorId()).isEqualTo(authorId);
-        assertThat(saved.getTitle()).isEqualTo("H2G2");
-        verify(bookRepo, times(1)).addBook(any(Book.class));
+        assertSoftly(s -> {
+            s.assertThat(saved.getAuthorId()).isEqualTo(authorId);
+            s.assertThat(saved.getTitle()).isEqualTo("H2G2");
+            s.check(() ->
+                    verify(bookRepo, times(1)).addBook(any(Book.class))
+            );
+        });
     }
 }

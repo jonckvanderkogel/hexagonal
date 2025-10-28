@@ -17,8 +17,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.SoftAssertions.assertSoftly;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 final class RoyaltyHttpHandlerTest extends AbstractHttpTest {
 
@@ -65,18 +67,21 @@ final class RoyaltyHttpHandlerTest extends AbstractHttpTest {
         var res = errorFilter.filter(req, handler::getMonthlyRoyalty);
 
         var body = writeToString(res);
-        assertThat(status(res)).isEqualTo(200);
-        assertThat(body).contains("\"authorId\":\"" + authorId + "\"");
-        assertThat(body).contains("\"period\":\"2025-01\"");
-        assertThat(body).contains("\"totalUnits\":1000");
-        assertThat(body).contains("\"grossRevenue\":10000.00");
-        assertThat(body).contains("\"effectiveRate\":0.0890");
-        assertThat(body).contains("\"royaltyDue\":890.00");
-        assertThat(body).contains("\"minimumGuarantee\":500.00");
-        // one tier sample check
-        assertThat(body).contains("\"unitsInTier\":500");
-        assertThat(body).contains("\"appliedRate\":0.07");
-        assertThat(body).contains("\"royaltyAmount\":350.00");
+
+        assertSoftly(s -> {
+            s.assertThat(status(res)).isEqualTo(200);
+            s.assertThat(body).contains("\"authorId\":\"" + authorId + "\"");
+            s.assertThat(body).contains("\"period\":\"2025-01\"");
+            s.assertThat(body).contains("\"totalUnits\":1000");
+            s.assertThat(body).contains("\"grossRevenue\":10000.00");
+            s.assertThat(body).contains("\"effectiveRate\":0.0890");
+            s.assertThat(body).contains("\"royaltyDue\":890.00");
+            s.assertThat(body).contains("\"minimumGuarantee\":500.00");
+            // one tier sample check
+            s.assertThat(body).contains("\"unitsInTier\":500");
+            s.assertThat(body).contains("\"appliedRate\":0.07");
+            s.assertThat(body).contains("\"royaltyAmount\":350.00");
+        });
     }
 
     @Test
@@ -91,9 +96,12 @@ final class RoyaltyHttpHandlerTest extends AbstractHttpTest {
         var res = errorFilter.filter(req, handler::getMonthlyRoyalty);
 
         var body = writeToString(res);
-        assertThat(status(res)).isEqualTo(400);
-        assertThat(body).contains("\"error\":\"Invalid request:");
-        verifyNoInteractions(royaltyService);
+
+        assertSoftly(s -> {
+            s.assertThat(status(res)).isEqualTo(400);
+            s.assertThat(body).contains("\"error\":\"Invalid request:");
+            s.check(() -> verifyNoInteractions(royaltyService));
+        });
     }
 
     @Test
@@ -106,9 +114,12 @@ final class RoyaltyHttpHandlerTest extends AbstractHttpTest {
         var res = errorFilter.filter(req, handler::getMonthlyRoyalty);
 
         var body = writeToString(res);
-        assertThat(status(res)).isEqualTo(400);
-        assertThat(body).contains("\"error\":\"Invalid request:");
-        verifyNoInteractions(royaltyService);
+
+        assertSoftly(s -> {
+            s.assertThat(status(res)).isEqualTo(400);
+            s.assertThat(body).contains("\"error\":\"Invalid request:");
+            s.check(() -> verifyNoInteractions(royaltyService));
+        });
     }
 
     @Test
@@ -126,8 +137,11 @@ final class RoyaltyHttpHandlerTest extends AbstractHttpTest {
         var res = errorFilter.filter(req, handler::getMonthlyRoyalty);
 
         var body = writeToString(res);
-        assertThat(status(res)).isEqualTo(404);
-        assertThat(body).contains("\"error\":\"Invalid resource identifier:");
+
+        assertSoftly(s -> {
+            s.assertThat(status(res)).isEqualTo(404);
+            s.assertThat(body).contains("\"error\":\"Invalid resource identifier:");
+        });
     }
 
     @Test
@@ -144,11 +158,14 @@ final class RoyaltyHttpHandlerTest extends AbstractHttpTest {
         var res = errorFilter.filter(req, handler::createSale);
 
         var body = writeToString(res);
-        assertThat(status(res)).isEqualTo(201);
-        assertThat(body).contains("\"id\":\"%s\"".formatted(id.toString()));
-        assertThat(body).contains("\"bookId\":\"%s\"".formatted(bookId.toString()));
-        assertThat(body).contains("\"units\":10");
-        assertThat(body).contains("\"amountEur\":100.1");
-        assertThat(body).contains("\"soldAt\":\"2024-01-01T00:00:00Z\"");
+
+        assertSoftly(s -> {
+            s.assertThat(status(res)).isEqualTo(201);
+            s.assertThat(body).contains("\"id\":\"%s\"".formatted(id.toString()));
+            s.assertThat(body).contains("\"bookId\":\"%s\"".formatted(bookId.toString()));
+            s.assertThat(body).contains("\"units\":10");
+            s.assertThat(body).contains("\"amountEur\":100.1");
+            s.assertThat(body).contains("\"soldAt\":\"2024-01-01T00:00:00Z\"");
+        });
     }
 }
