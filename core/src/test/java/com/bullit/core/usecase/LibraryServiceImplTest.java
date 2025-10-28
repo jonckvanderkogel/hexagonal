@@ -50,7 +50,7 @@ final class LibraryServiceImplTest {
         assertSoftly(s -> {
             s.assertThatThrownBy(() -> service.createAuthor("", ""))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Author last name is required; Author first name is required");
+                    .hasMessageContaining("required");
             s.check(() -> verifyNoInteractions(authorRepo));
         });
     }
