@@ -15,7 +15,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Stream;
 
 import static com.bullit.application.streaming.StreamingUtils.retryWithBackoff;
-import static com.bullit.application.streaming.StreamingUtils.runUntilInterrupted;
 
 public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoCloseable {
 
@@ -44,27 +43,23 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
     @PostConstruct
     private void startSendingLoop() {
         worker = Thread.ofVirtual().start(() ->
-                runUntilInterrupted(
-                        this::drainQueueAndSend,
-                        () -> stopping
+                blockingQueueStream().forEach(element ->
+                        serializeOrLogPoison(element)
+                                .ifPresent(json -> sendAsync(element, json))
                 )
         );
     }
 
-    private void drainQueueAndSend() {
-        takeElement().ifPresent(element ->
-                serializeOrLogPoison(element)
-                        .ifPresent(json -> sendAsync(element, json))
-        );
-    }
-
-    private Optional<T> takeElement() {
-        try {
-            return Optional.of(queue.take());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return Optional.empty();
-        }
+    private Stream<T> blockingQueueStream() {
+        return Stream.generate(() -> {
+            if (stopping) return null;
+            try {
+                return queue.take();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+        }).takeWhile(Objects::nonNull);
     }
 
     private Optional<String> serializeOrLogPoison(T element) {
