@@ -8,8 +8,11 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.stream.Stream;
 
 import static com.bullit.application.streaming.StreamingUtils.retryWithBackoff;
 import static com.bullit.application.streaming.StreamingUtils.runUntilInterrupted;
@@ -41,27 +44,55 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
     private void startSendingLoop() {
         worker = Thread.ofVirtual().start(() ->
                 runUntilInterrupted(
-                        this::sendQueuedMessages,
+                        this::drainQueueAndSend,
                         () -> stopping
                 )
         );
     }
 
-    private void sendQueuedMessages() {
+    private void drainQueueAndSend() {
+        takeElement().ifPresent(element ->
+                serializeOrLogPoison(element)
+                        .ifPresent(json -> sendAsync(element, json))
+        );
+    }
+
+    private Optional<T> takeElement() {
         try {
-            T element = queue.take();
-            retryWithBackoff(
-                    MAX_RETRY_ATTEMPTS,
-                    () -> sendOnce(element),
-                    e -> logPoisonMessage(element, e)
-            );
-        } catch (InterruptedException ignored) {
+            return Optional.of(queue.take());
+        } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            return Optional.empty();
         }
     }
 
-    private void sendOnce(T element) throws Exception {
-        String json = mapper.writeValueAsString(element);
+    private Optional<String> serializeOrLogPoison(T element) {
+        try {
+            return Optional.of(mapper.writeValueAsString(element));
+        } catch (Exception e) {
+            logPoisonMessage(element, e);
+            return Optional.empty();
+        }
+    }
+
+    private void sendAsync(T element, String json) {
+        producer.send(
+                new ProducerRecord<>(topic, json),
+                (_, exception) -> {
+                    if (exception != null) {
+                        Thread.ofVirtual().start(() ->
+                                retryWithBackoff(
+                                        5,
+                                        () -> retrySendSynchronously(json),
+                                        ex -> logPoisonMessage(element, ex)
+                                )
+                        );
+                    }
+                }
+        );
+    }
+
+    private void retrySendSynchronously(String json) throws Exception {
         producer.send(new ProducerRecord<>(topic, json)).get();
     }
 
@@ -87,21 +118,25 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
         stopping = true;
         worker.interrupt();
         waitForWorkerToFinish();
-        flushRemainingMessages();
+        drainRemainingQueue();
         producer.flush();
         safeCloseProducer();
         log.info("Kafka producer for topic {} shut down cleanly", topic);
     }
 
-    private void flushRemainingMessages() {
-        T element;
-        while ((element = queue.poll()) != null) {
-            try {
-                sendOnce(element);
-            } catch (Exception e) {
-                log.error("Error sending during shutdown: {}", element, e);
-            }
-        }
+    private void drainRemainingQueue() {
+        Stream.generate(queue::poll)
+                .takeWhile(Objects::nonNull)
+                .forEach(element ->
+                        serializeOrLogPoison(element)
+                                .ifPresent(json ->
+                                        retryWithBackoff(
+                                                2,
+                                                () -> retrySendSynchronously(json),
+                                                ex -> logPoisonMessage(element, ex)
+                                        )
+                                )
+                );
     }
 
     private void waitForWorkerToFinish() {
