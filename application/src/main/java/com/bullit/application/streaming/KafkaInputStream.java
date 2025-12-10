@@ -5,7 +5,6 @@ import com.bullit.domain.model.stream.StreamHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.common.errors.WakeupException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,6 +12,7 @@ import java.time.Duration;
 import java.util.Collections;
 
 import static com.bullit.application.streaming.StreamingUtils.retryWithBackoff;
+import static com.bullit.application.streaming.StreamingUtils.runUntilInterrupted;
 
 public final class KafkaInputStream<T> implements InputStreamPort<T>, AutoCloseable {
 
@@ -48,19 +48,10 @@ public final class KafkaInputStream<T> implements InputStreamPort<T>, AutoClosea
     private void startPollingLoop() {
         worker = Thread.ofVirtual().start(() ->
                 runUntilInterrupted(
-                        this::consumeMessages
+                        this::consumeMessages,
+                        () -> stopping
                 )
         );
-    }
-
-    private void runUntilInterrupted(Runnable block) {
-        try {
-            while (!Thread.currentThread().isInterrupted() && !stopping) {
-                block.run();
-            }
-        } catch (WakeupException ignored) {
-            // expected exit path on shutdown
-        }
     }
 
     private void consumeMessages() {

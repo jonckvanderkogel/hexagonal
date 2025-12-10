@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.errors.WakeupException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,6 +12,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 import static com.bullit.application.streaming.StreamingUtils.retryWithBackoff;
+import static com.bullit.application.streaming.StreamingUtils.runUntilInterrupted;
 
 public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoCloseable {
 
@@ -41,21 +41,10 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
     private void startSendingLoop() {
         worker = Thread.ofVirtual().start(() ->
                 runUntilInterrupted(
-                        this::sendQueuedMessages
+                        this::sendQueuedMessages,
+                        () -> stopping
                 )
         );
-    }
-
-    private void runUntilInterrupted(
-            Runnable block
-    ) {
-        try {
-            while (!Thread.currentThread().isInterrupted() && !stopping) {
-                block.run();
-            }
-        } catch (WakeupException ignored) {
-            // expected exit
-        }
     }
 
     private void sendQueuedMessages() {

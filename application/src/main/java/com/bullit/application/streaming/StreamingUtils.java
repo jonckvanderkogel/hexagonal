@@ -1,9 +1,11 @@
 package com.bullit.application.streaming;
 
+import org.apache.kafka.common.errors.WakeupException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public final class StreamingUtils {
     private StreamingUtils() {
@@ -14,6 +16,16 @@ public final class StreamingUtils {
     @FunctionalInterface
     public interface CheckedRunnable {
         void run() throws Exception;
+    }
+
+    public static void runUntilInterrupted(Runnable block, Supplier<Boolean> isStopped) {
+        try {
+            while (!Thread.currentThread().isInterrupted() && !isStopped.get()) {
+                block.run();
+            }
+        } catch (WakeupException ignored) {
+            // expected exit path on shutdown
+        }
     }
 
     public static void retryWithBackoff(
