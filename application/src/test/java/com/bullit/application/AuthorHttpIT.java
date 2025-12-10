@@ -20,7 +20,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestExecutionListeners;
 
 import java.net.URI;
@@ -35,7 +34,6 @@ import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 @SpringBootTest(webEnvironment = RANDOM_PORT)
-@DirtiesContext
 @TestExecutionListeners(
         value = {DbUnitTestExecutionListener.class},
         mergeMode = TestExecutionListeners.MergeMode.MERGE_WITH_DEFAULTS
@@ -168,7 +166,7 @@ class AuthorHttpIT extends AbstractIntegrationTest {
 
         var createReq = Map.of("title", title);
 
-        ResponseEntity<BookResponse> created = rest.postForEntity(base("/authors/{id}/books"), createReq, BookResponse.class, nonExistentAuthorId);
+        ResponseEntity<ErrorResponse> created = rest.postForEntity(base("/authors/{id}/books"), createReq, ErrorResponse.class, nonExistentAuthorId);
 
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }

@@ -8,6 +8,17 @@ spring:
   properties:
     hibernate:
       format_sql: true
+  docker:
+    compose:
+      enabled: true
+      file: ../docker-compose.yml
+      lifecycle-management: start-and-stop
+      skip:
+        in-tests: false
+      stop:
+        command: down
+        arguments: -v
+
 
 logging:
   level:

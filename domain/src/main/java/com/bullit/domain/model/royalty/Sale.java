@@ -1,5 +1,7 @@
 package com.bullit.domain.model.royalty;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Positive;
@@ -56,11 +58,13 @@ public class Sale {
         ));
     }
 
-    public static Sale rehydrate(UUID id,
-                                 UUID bookId,
-                                 int units,
-                                 BigDecimal amountEur,
-                                 Instant soldAt
+    @JsonCreator
+    public static Sale rehydrate(
+            @JsonProperty("id") UUID id,
+            @JsonProperty("bookId") UUID bookId,
+            @JsonProperty("units") int units,
+            @JsonProperty("amountEur") BigDecimal amountEur,
+            @JsonProperty("soldAt") Instant soldAt
     ) {
         return assertValid(new Sale(
                 id,

@@ -7,4 +7,5 @@ import java.util.UUID;
 public interface AuthorRepositoryPort {
     Author save(Author author);
     Author findById(UUID id);
+    Author findByBookId(UUID bookId);
 }

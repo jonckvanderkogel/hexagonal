@@ -247,3 +247,22 @@ Transfer-Encoding: chunked
 
 {"error":"Invalid resource identifier: Author aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaab not found"}
 ```
+
+#### Create a sale:
+```
+curl -X POST "http://localhost:8080/sale" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bookId": "0a000000-0000-0000-0000-000000000001",
+    "units": 3,
+    "amountEur": 59.97
+  }'
+  
+ curl -X POST "http://localhost:8080/sale" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "bookId": "0a000000-0000-0000-0000-000000000009",
+    "units": 3,
+    "amountEur": 59.97
+  }'
+```

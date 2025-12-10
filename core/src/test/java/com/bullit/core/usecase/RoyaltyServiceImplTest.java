@@ -6,6 +6,7 @@ import com.bullit.domain.model.royalty.RoyaltyTier;
 import com.bullit.domain.model.royalty.Sale;
 import com.bullit.domain.model.royalty.TierBreakdown;
 import com.bullit.domain.model.sales.SalesSummary;
+import com.bullit.domain.model.stream.OutputStreamPort;
 import com.bullit.domain.port.driven.SaleRepositoryPort;
 import com.bullit.domain.port.driven.reporting.SalesReportingPort;
 import org.assertj.core.api.SoftAssertions;
@@ -33,6 +34,7 @@ final class RoyaltyServiceImplTest {
 
     private SalesReportingPort reporting;
     private SaleRepositoryPort saleRepositoryPort;
+    private OutputStreamPort<Sale> outputStreamPort;
     private final Clock fixed = Clock.fixed(Instant.parse("2024-01-01T00:00:00Z"), ZoneOffset.UTC);
 
     private final UUID author = UUID.randomUUID();
@@ -53,6 +55,7 @@ final class RoyaltyServiceImplTest {
     void setUp() {
         reporting = mock(SalesReportingPort.class);
         saleRepositoryPort = mock(SaleRepositoryPort.class);
+        outputStreamPort = mock(OutputStreamPort.class);
     }
 
     private static SalesSummary sales(long units, String grossEuros) {
@@ -66,7 +69,12 @@ final class RoyaltyServiceImplTest {
         // Royalty = 1000*(100/250*0.10 + 150/250*0.15) = 1000*(0.04+0.09)=130
         when(reporting.monthlyAuthorSales(author, period)).thenReturn(sales(250, "1000"));
 
-        var service = new RoyaltyServiceImpl(reporting, saleRepositoryPort, progressiveScheme(), fixed);
+        var service = new RoyaltyServiceImpl(
+                reporting,
+                saleRepositoryPort,
+                outputStreamPort,
+                progressiveScheme(),
+                fixed);
 
         RoyaltyReport rep = service.generateMonthlyReport(author, period);
 
@@ -96,7 +104,12 @@ final class RoyaltyServiceImplTest {
         //         = 2000*(0.02 + 0.06 + 0.08) = 2000*0.16 = 320
         when(reporting.monthlyAuthorSales(author, period)).thenReturn(sales(500, "2000"));
 
-        var service = new RoyaltyServiceImpl(reporting, saleRepositoryPort, progressiveScheme(), fixed);
+        var service = new RoyaltyServiceImpl(
+                reporting,
+                saleRepositoryPort,
+                outputStreamPort,
+                progressiveScheme(),
+                fixed);
 
         RoyaltyReport rep = service.generateMonthlyReport(author, period);
 
@@ -122,7 +135,12 @@ final class RoyaltyServiceImplTest {
                 progressiveScheme().getTiers(),
                 new BigDecimal("200")
         );
-        var service = new RoyaltyServiceImpl(reporting, saleRepositoryPort, scheme, fixed);
+        var service = new RoyaltyServiceImpl(
+                reporting,
+                saleRepositoryPort,
+                outputStreamPort,
+                scheme,
+                fixed);
 
         RoyaltyReport rep = service.generateMonthlyReport(author, period);
 
@@ -144,7 +162,12 @@ final class RoyaltyServiceImplTest {
                 List.of(RoyaltyTier.of(Long.MAX_VALUE, new BigDecimal("0.12"))),
                 ZERO
         );
-        var service = new RoyaltyServiceImpl(reporting, saleRepositoryPort, scheme, fixed);
+        var service = new RoyaltyServiceImpl(
+                reporting,
+                saleRepositoryPort,
+                outputStreamPort,
+                scheme,
+                fixed);
 
         RoyaltyReport rep = service.generateMonthlyReport(author, period);
 
@@ -161,7 +184,12 @@ final class RoyaltyServiceImplTest {
         when(reporting.monthlyAuthorSales(author, period)).thenReturn(sales(0, "0"));
 
         RoyaltyScheme scheme = RoyaltyScheme.of(progressiveScheme().getTiers(), new BigDecimal("50"));
-        var service = new RoyaltyServiceImpl(reporting, saleRepositoryPort, scheme, fixed);
+        var service = new RoyaltyServiceImpl(
+                reporting,
+                saleRepositoryPort,
+                outputStreamPort,
+                scheme,
+                fixed);
 
         RoyaltyReport rep = service.generateMonthlyReport(author, period);
 
@@ -199,7 +227,12 @@ final class RoyaltyServiceImplTest {
                 ),
                 ZERO
         );
-        var service = new RoyaltyServiceImpl(reporting, saleRepositoryPort, scheme, fixed);
+        var service = new RoyaltyServiceImpl(
+                reporting,
+                saleRepositoryPort,
+                outputStreamPort,
+                scheme,
+                fixed);
 
         RoyaltyReport rep = service.generateMonthlyReport(author, period);
 
@@ -241,7 +274,12 @@ final class RoyaltyServiceImplTest {
         var sale = Sale.rehydrate(saleId, bookId, units, amountEur, sold);
         when(saleRepositoryPort.addSale(any(Sale.class))).thenReturn(sale);
 
-        var service = new RoyaltyServiceImpl(reporting, saleRepositoryPort, progressiveScheme(), fixed);
+        var service = new RoyaltyServiceImpl(
+                reporting,
+                saleRepositoryPort,
+                outputStreamPort,
+                progressiveScheme(),
+                fixed);
 
         var saved = service.createSale(bookId, units, amountEur);
 

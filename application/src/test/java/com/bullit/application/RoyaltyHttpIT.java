@@ -19,7 +19,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestExecutionListeners;
 
 import java.math.BigDecimal;
@@ -35,7 +34,6 @@ import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
 @SpringBootTest(webEnvironment = RANDOM_PORT)
-@DirtiesContext
 @TestExecutionListeners(
         value = {DbUnitTestExecutionListener.class},
         mergeMode = TestExecutionListeners.MergeMode.MERGE_WITH_DEFAULTS
@@ -108,14 +106,14 @@ class RoyaltyHttpIT extends AbstractIntegrationTest {
 
     @Test
     void addSale_returns201() {
-        var createReq = Map.of("bookId", "33333333-3333-3333-3333-333333333333", "units", "100", "amountEur", "550.15");
+        var createReq = Map.of("bookId", "55555555-5555-5555-5555-555555555555", "units", "100", "amountEur", "550.15");
         ResponseEntity<SaleResponse> created = rest.postForEntity(base("/sale"), createReq, SaleResponse.class);
 
         assertSoftly(s -> {
             s.assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
             s.assertThat(created.getBody()).isNotNull();
             s.assertThat(created.getBody().id()).isNotNull();
-            s.assertThat(created.getBody().bookId()).isEqualTo(UUID.fromString("33333333-3333-3333-3333-333333333333"));
+            s.assertThat(created.getBody().bookId()).isEqualTo(UUID.fromString("55555555-5555-5555-5555-555555555555"));
             s.assertThat(created.getBody().amountEur()).isEqualTo("550.15");
             s.assertThat(created.getBody().units()).isEqualTo(100);
             s.assertThat(created.getBody().soldAt()).isEqualTo(
@@ -128,7 +126,7 @@ class RoyaltyHttpIT extends AbstractIntegrationTest {
     @Test
     void invalidSale_returns400() {
         var createReq = Map.of("units", "100", "amountEur", "550.15");
-        ResponseEntity<SaleResponse> created = rest.postForEntity(base("/sale"), createReq, SaleResponse.class);
+        ResponseEntity<ErrorResponse> created = rest.postForEntity(base("/sale"), createReq, ErrorResponse.class);
 
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
@@ -136,7 +134,7 @@ class RoyaltyHttpIT extends AbstractIntegrationTest {
     @Test
     void invalidBookForSale_returns404() {
         var createReq = Map.of("bookId", "44444444-4444-4444-4444-444444444444", "units", "100", "amountEur", "550.15");
-        ResponseEntity<SaleResponse> created = rest.postForEntity(base("/sale"), createReq, SaleResponse.class);
+        ResponseEntity<ErrorResponse> created = rest.postForEntity(base("/sale"), createReq, ErrorResponse.class);
 
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }

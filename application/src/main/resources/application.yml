@@ -17,6 +17,22 @@ spring:
     change-log: classpath:db/changelog.xml
     contexts: seed
 
+kafka:
+  bootstrap-servers: localhost:9093
+
 logging:
   level:
     org.hibernate.SQL: warn
+
+streams:
+  inputs:
+    - payload-type: com.bullit.domain.model.royalty.Sale
+      topic: raw-sales
+      group-id: sale-to-royalty
+  outputs:
+    - payload-type: com.bullit.domain.model.royalty.Sale
+      topic: raw-sales
+    - payload-type: com.bullit.domain.model.royalty.RoyaltyReport
+      topic: author-royalties
+  handlers:
+    - handler-class: com.bullit.core.usecase.SaleToRoyaltyHandler

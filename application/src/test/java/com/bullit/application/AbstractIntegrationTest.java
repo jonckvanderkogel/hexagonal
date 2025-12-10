@@ -10,38 +10,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import javax.sql.DataSource;
 
-@Testcontainers
 @ActiveProfiles("test")
 @Import(AbstractIntegrationTest.TestConfig.class)
 public abstract class AbstractIntegrationTest {
 
     private static final Logger log = LoggerFactory.getLogger(AbstractIntegrationTest.class);
-
-    @Container
-    public static final PostgreSQLContainer<?> postgres =
-            new PostgreSQLContainer<>("postgres:17.4");
-
-    @DynamicPropertySource
-    static void registerPostgresProperties(DynamicPropertyRegistry registry) {
-        log.info("Database: {} Port: {} User: {}",
-                postgres.getDatabaseName(), postgres.getFirstMappedPort(), postgres.getUsername());
-
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-
-        registry.add("spring.liquibase.url", postgres::getJdbcUrl);
-        registry.add("spring.liquibase.user", postgres::getUsername);
-        registry.add("spring.liquibase.password", postgres::getPassword);
-    }
 
     @TestConfiguration
     static class TestConfig {

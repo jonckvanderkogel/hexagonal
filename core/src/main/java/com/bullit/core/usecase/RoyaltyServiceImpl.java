@@ -4,6 +4,7 @@ import com.bullit.domain.model.royalty.RoyaltyScheme;
 import com.bullit.domain.model.royalty.RoyaltyTier;
 import com.bullit.domain.model.royalty.Sale;
 import com.bullit.domain.model.royalty.TierBreakdown;
+import com.bullit.domain.model.stream.OutputStreamPort;
 import com.bullit.domain.port.driving.RoyaltyServicePort;
 import com.bullit.domain.port.driven.SaleRepositoryPort;
 import com.bullit.domain.port.driven.reporting.SalesReportingPort;
@@ -24,16 +25,19 @@ import static java.math.BigDecimal.ZERO;
 public final class RoyaltyServiceImpl implements RoyaltyServicePort {
     private final SalesReportingPort salesReportingPort;
     private final SaleRepositoryPort saleRepositoryPort;
+    private final OutputStreamPort<Sale> outputStreamPort;
     private final RoyaltyScheme scheme;
     private final MathContext mc = new MathContext(12, RoundingMode.HALF_UP);
     private final Clock clock;
 
     public RoyaltyServiceImpl(SalesReportingPort salesReportingPort,
                               SaleRepositoryPort saleRepositoryPort,
+                              OutputStreamPort<Sale> outputStream,
                               RoyaltyScheme scheme,
                               Clock clock) {
         this.salesReportingPort = salesReportingPort;
         this.saleRepositoryPort = saleRepositoryPort;
+        this.outputStreamPort = outputStream;
         this.scheme = scheme;
         this.clock = clock;
     }
@@ -117,6 +121,8 @@ public final class RoyaltyServiceImpl implements RoyaltyServicePort {
 
     @Override
     public Sale createSale(UUID bookId, int units, BigDecimal amountEur) {
-        return saleRepositoryPort.addSale(Sale.createNew(bookId, units, amountEur, clock));
+        var sale = saleRepositoryPort.addSale(Sale.createNew(bookId, units, amountEur, clock));
+        outputStreamPort.emit(sale);
+        return sale;
     }
 }
