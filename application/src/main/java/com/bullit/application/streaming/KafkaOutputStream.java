@@ -23,6 +23,7 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
 
     private static final int MAX_BUFFER_SIZE = 10_000;
     private static final int MAX_RETRY_ATTEMPTS = 5;
+    private static final int MAX_RETRY_ATTEMPTS_ON_SHUTDOWN = 5;
 
     private final String topic;
     private final KafkaProducer<String, String> producer;
@@ -82,7 +83,7 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
                     if (exception != null) {
                         Thread.ofVirtual().start(() ->
                                 retryWithBackoff(
-                                        5,
+                                        MAX_RETRY_ATTEMPTS,
                                         () -> retrySendSynchronously(json),
                                         ex -> logPoisonMessage(element, ex)
                                 )
@@ -131,7 +132,7 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
                         serializeOrLogPoison(element)
                                 .ifPresent(json ->
                                         retryWithBackoff(
-                                                2,
+                                                MAX_RETRY_ATTEMPTS_ON_SHUTDOWN,
                                                 () -> retrySendSynchronously(json),
                                                 ex -> logPoisonMessage(element, ex)
                                         )
