@@ -33,7 +33,7 @@ public final class SaleToRoyaltyHandler implements StreamHandler<Sale> {
     }
 
     @PostConstruct
-    private void registerHandler() {
+    void registerHandler() {
         input.subscribe(this);
     }
 

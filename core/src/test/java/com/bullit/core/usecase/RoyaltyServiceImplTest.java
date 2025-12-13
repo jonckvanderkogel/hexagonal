@@ -10,7 +10,6 @@ import com.bullit.domain.model.stream.OutputStreamPort;
 import com.bullit.domain.port.driven.SaleRepositoryPort;
 import com.bullit.domain.port.driven.reporting.SalesReportingPort;
 import org.assertj.core.api.SoftAssertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -32,9 +31,10 @@ import static org.mockito.Mockito.when;
 
 final class RoyaltyServiceImplTest {
 
-    private SalesReportingPort reporting;
-    private SaleRepositoryPort saleRepositoryPort;
-    private OutputStreamPort<Sale> outputStreamPort;
+    private final SalesReportingPort reporting = mock(SalesReportingPort.class);
+    private final SaleRepositoryPort saleRepositoryPort = mock(SaleRepositoryPort.class);
+    private final OutputStreamPort<Sale> outputStreamPort = mock(OutputStreamPort.class);
+
     private final Clock fixed = Clock.fixed(Instant.parse("2024-01-01T00:00:00Z"), ZoneOffset.UTC);
 
     private final UUID author = UUID.randomUUID();
@@ -49,13 +49,6 @@ final class RoyaltyServiceImplTest {
                 ),
                 ZERO
         );
-    }
-
-    @BeforeEach
-    void setUp() {
-        reporting = mock(SalesReportingPort.class);
-        saleRepositoryPort = mock(SaleRepositoryPort.class);
-        outputStreamPort = mock(OutputStreamPort.class);
     }
 
     private static SalesSummary sales(long units, String grossEuros) {

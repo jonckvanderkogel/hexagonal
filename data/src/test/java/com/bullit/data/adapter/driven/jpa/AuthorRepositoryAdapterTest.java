@@ -83,4 +83,50 @@ final class AuthorRepositoryAdapterTest {
                 .isInstanceOf(DatabaseInteractionException.class)
                 .hasMessageContaining("DB error during findById");
     }
+
+    @Test
+    void findByBookId_present_mapsToDomain() {
+        var bookId = UUID.randomUUID();
+        var authorId = UUID.randomUUID();
+
+        var entity = new AuthorEntity(
+                authorId,
+                "Arthur",
+                "Dent",
+                emptyList(),
+                Instant.parse("2024-01-01T00:00:00Z")
+        );
+
+        when(jpa.findByBooksId(bookId)).thenReturn(Optional.of(entity));
+
+        var result = adapter.findByBookId(bookId);
+
+        assertSoftly(s -> {
+            s.assertThat(result.getId()).isEqualTo(authorId);
+            s.assertThat(result.getFirstName()).isEqualTo("Arthur");
+            s.assertThat(result.getLastName()).isEqualTo("Dent");
+            s.check(() -> verify(jpa, times(1)).findByBooksId(bookId));
+        });
+    }
+
+    @Test
+    void findByBookId_missing_throwsNotFound() {
+        var bookId = UUID.randomUUID();
+        when(jpa.findByBooksId(bookId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> adapter.findByBookId(bookId))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessageContaining(bookId.toString());
+    }
+
+    @Test
+    void findByBookId_dataAccessException_wrapsAsPersistenceException() {
+        var bookId = UUID.randomUUID();
+        when(jpa.findByBooksId(bookId))
+                .thenThrow(new DataAccessResourceFailureException("db down"));
+
+        assertThatThrownBy(() -> adapter.findByBookId(bookId))
+                .isInstanceOf(DatabaseInteractionException.class)
+                .hasMessageContaining("DB error during findByBookId");
+    }
 }
