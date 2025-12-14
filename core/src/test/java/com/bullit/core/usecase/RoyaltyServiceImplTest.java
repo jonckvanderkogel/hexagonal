@@ -30,7 +30,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 final class RoyaltyServiceImplTest {
-
     private final SalesReportingPort reporting = mock(SalesReportingPort.class);
     private final SaleRepositoryPort saleRepositoryPort = mock(SaleRepositoryPort.class);
     private final OutputStreamPort<Sale> outputStreamPort = mock(OutputStreamPort.class);
@@ -283,6 +282,46 @@ final class RoyaltyServiceImplTest {
             s.assertThat(saved.getSoldAt()).isEqualTo(sold);
 
             s.check(() -> verify(saleRepositoryPort, times(1)).addSale(any(Sale.class)));
+        });
+    }
+
+    @Test
+    void addSale_emitsSaleOnOutputStream() {
+        var saleId = UUID.randomUUID();
+        var bookId = UUID.randomUUID();
+        var units = 5;
+        var amountEur = new BigDecimal("42.00");
+        var soldAt = Instant.parse("2024-01-05T00:00:00Z");
+
+        var persistedSale = Sale.rehydrate(
+                saleId,
+                bookId,
+                units,
+                amountEur,
+                soldAt
+        );
+
+        when(saleRepositoryPort.addSale(any(Sale.class)))
+                .thenReturn(persistedSale);
+
+        var service = new RoyaltyServiceImpl(
+                reporting,
+                saleRepositoryPort,
+                outputStreamPort,
+                progressiveScheme(),
+                fixed
+        );
+
+        var result = service.createSale(bookId, units, amountEur);
+
+        assertSoftly(s -> {
+            s.assertThat(result).isSameAs(persistedSale);
+
+            s.check(() -> verify(saleRepositoryPort, times(1))
+                    .addSale(any(Sale.class)));
+
+            s.check(() -> verify(outputStreamPort, times(1))
+                    .emit(persistedSale));
         });
     }
 }
