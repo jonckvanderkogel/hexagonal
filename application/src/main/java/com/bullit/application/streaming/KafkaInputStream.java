@@ -28,19 +28,23 @@ public final class KafkaInputStream<T> implements InputStreamPort<T>, AutoClosea
     private StreamHandler<T> handler;
 
     public KafkaInputStream(String topic,
-                            String groupId,
+                            KafkaConsumer<String, String> consumer,
                             Class<T> type,
-                            KafkaClientProperties kafkaProps,
                             ObjectMapper mapper) {
         this.topic = topic;
+        this.consumer = consumer;
         this.type = type;
         this.mapper = mapper;
-        this.consumer = new KafkaConsumer<>(kafkaProps.buildConsumerProperties(groupId));
-        this.consumer.subscribe(Collections.singletonList(topic));
     }
 
     @Override
-    public void subscribe(StreamHandler<T> handler) {
+    public synchronized void subscribe(StreamHandler<T> handler) {
+        if (this.handler != null) {
+            throw new IllegalStateException(
+                    "KafkaInputStream for topic '%s' already has a handler".formatted(topic)
+            );
+        }
+        this.consumer.subscribe(Collections.singletonList(topic));
         this.handler = handler;
         startPollingLoop();
     }

@@ -4,6 +4,7 @@ import com.bullit.domain.model.stream.InputStreamPort;
 import com.bullit.domain.model.stream.OutputStreamPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
@@ -76,16 +77,19 @@ public class StreamBootstrap {
 
         config.inputs().forEach(cfg -> {
             log.info("Bootstrapping input stream for topic: {}", cfg.topic());
+
             String beanName = "inputStream:" + cfg.payloadType().getName();
 
-            ResolvableType type = ResolvableType
-                    .forClassWithGenerics(InputStreamPort.class, cfg.payloadType());
+            ResolvableType type =
+                    ResolvableType.forClassWithGenerics(InputStreamPort.class, cfg.payloadType());
+
+            KafkaConsumer<String, String> consumer =
+                    new KafkaConsumer<>(kafkaProps.buildConsumerProperties(cfg.groupId()));
 
             RootBeanDefinition beanDef = new RootBeanDefinition(KafkaInputStream.class);
             beanDef.setTargetType(type);
             beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.topic());
-            beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.groupId());
-            beanDef.getConstructorArgumentValues().addGenericArgumentValue(kafkaProps);
+            beanDef.getConstructorArgumentValues().addGenericArgumentValue(consumer);
             beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.payloadType());
             beanDef.getConstructorArgumentValues().addGenericArgumentValue(mapper);
 
