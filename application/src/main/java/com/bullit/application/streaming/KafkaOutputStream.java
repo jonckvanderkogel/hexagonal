@@ -33,15 +33,15 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
     private volatile boolean stopping = false;
 
     public KafkaOutputStream(String topic,
-                             KafkaClientProperties kafkaProps,
+                             KafkaProducer<String, String> kafkaProducer,
                              ObjectMapper mapper) {
         this.topic = topic;
+        this.producer = kafkaProducer;
         this.mapper = mapper;
-        this.producer = new KafkaProducer<>(kafkaProps.buildProducerProperties());
     }
 
     @PostConstruct
-    private void startSendingLoop() {
+    void startSendingLoop() {
         worker = Thread.ofVirtual().start(() ->
                 blockingQueueStream().forEach(element ->
                         serializeOrLogPoison(element)
