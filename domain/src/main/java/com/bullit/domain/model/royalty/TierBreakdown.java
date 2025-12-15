@@ -1,5 +1,6 @@
 package com.bullit.domain.model.royalty;
 
+import com.bullit.domain.event.TierBreakdownEvent;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
@@ -41,5 +42,14 @@ public class TierBreakdown {
         return assertValid(
                 new TierBreakdown(unitsInTier, appliedRate, royaltyAmount)
         );
+    }
+
+    public static TierBreakdownEvent toEvent(TierBreakdown tierBreakdown) {
+        return TierBreakdownEvent
+                .newBuilder()
+                .setUnitsInTier(tierBreakdown.getUnitsInTier())
+                .setAppliedRate(tierBreakdown.getAppliedRate())
+                .setRoyaltyAmount(tierBreakdown.getRoyaltyAmount())
+                .build();
     }
 }

@@ -1,5 +1,6 @@
 package com.bullit.core.usecase;
 
+import com.bullit.domain.event.SaleEvent;
 import com.bullit.domain.model.royalty.RoyaltyReport;
 import com.bullit.domain.model.royalty.RoyaltyScheme;
 import com.bullit.domain.model.royalty.RoyaltyTier;
@@ -32,7 +33,7 @@ import static org.mockito.Mockito.when;
 final class RoyaltyServiceImplTest {
     private final SalesReportingPort reporting = mock(SalesReportingPort.class);
     private final SaleRepositoryPort saleRepositoryPort = mock(SaleRepositoryPort.class);
-    private final OutputStreamPort<Sale> outputStreamPort = mock(OutputStreamPort.class);
+    private final OutputStreamPort<SaleEvent> outputStreamPort = mock(OutputStreamPort.class);
 
     private final Clock fixed = Clock.fixed(Instant.parse("2024-01-01T00:00:00Z"), ZoneOffset.UTC);
 
@@ -286,7 +287,7 @@ final class RoyaltyServiceImplTest {
     }
 
     @Test
-    void addSale_emitsSaleOnOutputStream() {
+    void addSale_emitsSaleEventOnOutputStream() {
         var saleId = UUID.randomUUID();
         var bookId = UUID.randomUUID();
         var units = 5;
@@ -321,7 +322,7 @@ final class RoyaltyServiceImplTest {
                     .addSale(any(Sale.class)));
 
             s.check(() -> verify(outputStreamPort, times(1))
-                    .emit(persistedSale));
+                    .emit(Sale.toEvent(persistedSale)));
         });
     }
 }

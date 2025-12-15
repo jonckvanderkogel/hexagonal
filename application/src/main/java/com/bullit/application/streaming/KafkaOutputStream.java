@@ -1,7 +1,6 @@
 package com.bullit.application.streaming;
 
 import com.bullit.domain.model.stream.OutputStreamPort;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -9,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Stream;
@@ -25,28 +23,22 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
     private static final int MAX_RETRY_ATTEMPTS_ON_SHUTDOWN = 5;
 
     private final String topic;
-    private final KafkaProducer<String, String> producer;
-    private final ObjectMapper mapper;
+    private final KafkaProducer<String, T> producer;
     private final BlockingQueue<T> queue = new LinkedBlockingQueue<>(MAX_BUFFER_SIZE);
 
     private Thread worker;
     private volatile boolean stopping = false;
 
     public KafkaOutputStream(String topic,
-                             KafkaProducer<String, String> kafkaProducer,
-                             ObjectMapper mapper) {
+                             KafkaProducer<String, T> kafkaProducer) {
         this.topic = topic;
         this.producer = kafkaProducer;
-        this.mapper = mapper;
     }
 
     @PostConstruct
     void startSendingLoop() {
         worker = Thread.ofVirtual().start(() ->
-                blockingQueueStream().forEach(element ->
-                        serializeOrLogPoison(element)
-                                .ifPresent(json -> sendAsync(element, json))
-                )
+                blockingQueueStream().forEach(this::sendAsync)
         );
     }
 
@@ -62,24 +54,16 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
         }).takeWhile(Objects::nonNull);
     }
 
-    private Optional<String> serializeOrLogPoison(T element) {
-        try {
-            return Optional.of(mapper.writeValueAsString(element));
-        } catch (Exception e) {
-            logPoisonMessage(element, e);
-            return Optional.empty();
-        }
-    }
-
-    private void sendAsync(T element, String json) {
+    private void sendAsync(T element) {
         producer.send(
-                new ProducerRecord<>(topic, json),
+                new ProducerRecord<>(topic, element),
                 (_, exception) -> {
                     if (exception != null) {
+                        log.error("Received error: {}", element, exception);
                         Thread.ofVirtual().start(() ->
                                 retryWithBackoff(
                                         MAX_RETRY_ATTEMPTS,
-                                        () -> retrySendSynchronously(json),
+                                        () -> retrySendSynchronously(element),
                                         ex -> logPoisonMessage(element, ex)
                                 )
                         );
@@ -88,8 +72,13 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
         );
     }
 
-    private void retrySendSynchronously(String json) throws Exception {
-        producer.send(new ProducerRecord<>(topic, json)).get();
+    private void retrySendSynchronously(T element) throws Exception {
+        log.warn("Retrying: {}", element);
+        sendSynchronously(element);
+    }
+
+    private void sendSynchronously(T element) throws Exception {
+        producer.send(new ProducerRecord<>(topic, element)).get();
     }
 
     private void logPoisonMessage(T element, Exception e) {
@@ -124,14 +113,11 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
         Stream.generate(queue::poll)
                 .takeWhile(Objects::nonNull)
                 .forEach(element ->
-                        serializeOrLogPoison(element)
-                                .ifPresent(json ->
-                                        retryWithBackoff(
-                                                MAX_RETRY_ATTEMPTS_ON_SHUTDOWN,
-                                                () -> retrySendSynchronously(json),
-                                                ex -> logPoisonMessage(element, ex)
-                                        )
-                                )
+                        retryWithBackoff(
+                                MAX_RETRY_ATTEMPTS_ON_SHUTDOWN,
+                                () -> sendSynchronously(element),
+                                ex -> logPoisonMessage(element, ex)
+                        )
                 );
     }
 

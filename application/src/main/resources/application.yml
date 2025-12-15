@@ -19,6 +19,7 @@ spring:
 
 kafka:
   bootstrap-servers: localhost:9093
+  schema-registry-url: http://localhost:8081
 
 logging:
   level:
@@ -26,13 +27,13 @@ logging:
 
 streams:
   inputs:
-    - payload-type: com.bullit.domain.model.royalty.Sale
+    - payload-type: com.bullit.domain.event.SaleEvent
       topic: raw-sales
       group-id: sale-to-royalty
   outputs:
-    - payload-type: com.bullit.domain.model.royalty.Sale
+    - payload-type: com.bullit.domain.event.SaleEvent
       topic: raw-sales
-    - payload-type: com.bullit.domain.model.royalty.RoyaltyReport
+    - payload-type: com.bullit.domain.event.RoyaltyReportEvent
       topic: author-royalties
   handlers:
     - handler-class: com.bullit.core.usecase.SaleToRoyaltyHandler

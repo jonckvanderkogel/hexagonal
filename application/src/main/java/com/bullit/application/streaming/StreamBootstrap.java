@@ -2,7 +2,6 @@ package com.bullit.application.streaming;
 
 import com.bullit.domain.model.stream.InputStreamPort;
 import com.bullit.domain.model.stream.OutputStreamPort;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -28,18 +27,15 @@ public class StreamBootstrap {
     private final StreamConfigProperties config;
     private final KafkaClientProperties kafkaProps;
     private final AutowireCapableBeanFactory factory;
-    private final ObjectMapper mapper;
 
     public StreamBootstrap(StreamConfigProperties config,
                            KafkaClientProperties kafkaProps,
                            AutowireCapableBeanFactory factory,
-                           ApplicationContext context,
-                           ObjectMapper mapper) {
+                           ApplicationContext context) {
         this.config = config;
         this.kafkaProps = kafkaProps;
         this.factory = factory;
         this.context = context;
-        this.mapper = mapper;
     }
 
     @PostConstruct
@@ -68,7 +64,6 @@ public class StreamBootstrap {
             beanDef.setTargetType(resolvableType);
             beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.topic());
             beanDef.getConstructorArgumentValues().addGenericArgumentValue(kafkaProducer);
-            beanDef.getConstructorArgumentValues().addGenericArgumentValue(mapper);
 
             registry.registerBeanDefinition(beanName, beanDef);
         });
@@ -84,7 +79,7 @@ public class StreamBootstrap {
             var beanName = "inputStream:" + cfg.payloadType().getName();
 
             var type = ResolvableType
-                    .forClassWithGenerics(InputStreamPort.class,cfg.payloadType());
+                    .forClassWithGenerics(InputStreamPort.class, cfg.payloadType());
 
             var consumer = new KafkaConsumer<>(kafkaProps.buildConsumerProperties(cfg.groupId()));
 
@@ -92,8 +87,6 @@ public class StreamBootstrap {
             beanDef.setTargetType(type);
             beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.topic());
             beanDef.getConstructorArgumentValues().addGenericArgumentValue(consumer);
-            beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.payloadType());
-            beanDef.getConstructorArgumentValues().addGenericArgumentValue(mapper);
 
             registry.registerBeanDefinition(beanName, beanDef);
         });

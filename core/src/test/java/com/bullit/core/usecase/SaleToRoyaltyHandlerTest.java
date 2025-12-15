@@ -1,12 +1,15 @@
 package com.bullit.core.usecase;
 
+import com.bullit.domain.event.RoyaltyReportEvent;
+import com.bullit.domain.event.SaleEvent;
 import com.bullit.domain.model.library.Author;
 import com.bullit.domain.model.royalty.RoyaltyReport;
 import com.bullit.domain.model.royalty.Sale;
+import com.bullit.domain.model.royalty.TierBreakdown;
 import com.bullit.domain.model.stream.InputStreamPort;
 import com.bullit.domain.model.stream.OutputStreamPort;
-import com.bullit.domain.port.driving.RoyaltyServicePort;
 import com.bullit.domain.port.driven.AuthorRepositoryPort;
+import com.bullit.domain.port.driving.RoyaltyServicePort;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -18,11 +21,15 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 final class SaleToRoyaltyHandlerTest {
-    private final InputStreamPort<Sale> input = mock(InputStreamPort.class);
-    private final OutputStreamPort<RoyaltyReport> output = mock(OutputStreamPort.class);
+    private final InputStreamPort<SaleEvent> input = mock(InputStreamPort.class);
+    private final OutputStreamPort<RoyaltyReportEvent> output = mock(OutputStreamPort.class);
     private final RoyaltyServicePort royaltyService = mock(RoyaltyServicePort.class);
     private final AuthorRepositoryPort authorRepository = mock(AuthorRepositoryPort.class);
 
@@ -71,7 +78,24 @@ final class SaleToRoyaltyHandlerTest {
 
         YearMonth expectedPeriod = YearMonth.of(2025, 1);
 
-        RoyaltyReport report = mock(RoyaltyReport.class);
+        RoyaltyReport report =
+                RoyaltyReport.of(
+                        authorId,
+                        expectedPeriod,
+                        3L,
+                        new BigDecimal("59.97"),
+                        new BigDecimal("0.15"),
+                        new BigDecimal("8.9955"),
+                        new BigDecimal("5.00"),
+                        List.of(
+                                TierBreakdown.of(
+                                        3L,
+                                        new BigDecimal("0.15"),
+                                        new BigDecimal("8.9955")
+                                )
+                        )
+                );
+
         when(royaltyService.generateMonthlyReport(authorId, expectedPeriod))
                 .thenReturn(report);
 
@@ -83,7 +107,7 @@ final class SaleToRoyaltyHandlerTest {
                 fixedClock
         );
 
-        handler.handle(sale);
+        handler.handle(Sale.toEvent(sale));
 
         assertSoftly(s -> {
             s.check(() ->
@@ -96,7 +120,7 @@ final class SaleToRoyaltyHandlerTest {
             );
             s.check(() ->
                     verify(output, times(1))
-                            .emit(report)
+                            .emit(RoyaltyReport.toEvent(report))
             );
         });
 

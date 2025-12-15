@@ -1,0 +1,20 @@
+{
+  "type": "record",
+  "name": "SaleEvent",
+  "namespace": "com.bullit.domain.event",
+  "fields": [
+    { "name": "id", "type": "string" },
+    { "name": "bookId", "type": "string" },
+    { "name": "units", "type": "int" },
+    {
+        "name": "amountEur",
+        "type": {
+          "type": "bytes",
+          "logicalType": "decimal",
+          "precision": 18,
+          "scale": 2
+        }
+    },
+    { "name": "soldAt", "type": "long" }
+  ]
+}

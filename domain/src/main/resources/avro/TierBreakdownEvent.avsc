@@ -1,0 +1,29 @@
+{
+  "type": "record",
+  "name": "TierBreakdownEvent",
+  "namespace": "com.bullit.domain.event",
+  "fields": [
+    {
+      "name": "unitsInTier",
+      "type": "long"
+    },
+    {
+      "name": "appliedRate",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 18,
+        "scale": 12
+      }
+    },
+    {
+      "name": "royaltyAmount",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 18,
+        "scale": 12
+      }
+    }
+  ]
+}

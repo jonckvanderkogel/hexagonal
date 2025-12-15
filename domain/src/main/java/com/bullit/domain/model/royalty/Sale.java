@@ -1,5 +1,6 @@
 package com.bullit.domain.model.royalty;
 
+import com.bullit.domain.event.SaleEvent;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotNull;
@@ -93,5 +94,16 @@ public class Sale {
 
     public Instant getSoldAt() {
         return soldAt;
+    }
+
+    public static SaleEvent toEvent(Sale sale) {
+        return SaleEvent
+                .newBuilder()
+                .setId(sale.getId().toString())
+                .setBookId(sale.getBookId().toString())
+                .setUnits(sale.getUnits())
+                .setAmountEur(sale.getAmountEur())
+                .setSoldAt(sale.getSoldAt().toEpochMilli())
+                .build();
     }
 }

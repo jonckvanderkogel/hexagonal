@@ -9,7 +9,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 @AnalyzeClasses(
         packages = "com.bullit.core",
-        importOptions = { ImportOption.DoNotIncludeTests.class }
+        importOptions = {ImportOption.DoNotIncludeTests.class}
 )
 public class CoreDependenciesTest {
 
@@ -49,6 +49,7 @@ public class CoreDependenciesTest {
                             "com.bullit.core..",   // ← allow core to depend on itself
                             "java..",
                             "javax..",
-                            "jakarta.."
+                            "jakarta..",
+                            "org.slf4j.."
                     );
 }

@@ -1,10 +1,14 @@
 package com.bullit.application;
 
+import com.bullit.application.streaming.KafkaClientProperties;
+import com.bullit.domain.event.RoyaltyReportEvent;
 import com.bullit.domain.model.royalty.RoyaltyScheme;
 import com.bullit.domain.model.royalty.RoyaltyTier;
 import com.bullit.web.adapter.driving.http.Response.ErrorResponse;
 import com.bullit.web.adapter.driving.http.Response.RoyaltyReportResponse;
 import com.bullit.web.adapter.driving.http.Response.SaleResponse;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
@@ -21,10 +25,12 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +48,9 @@ class RoyaltyHttpIT {
 
     @Autowired
     TestRestTemplate rest;
+
+    @Autowired
+    KafkaClientProperties kafkaClientProperties;
 
     private String base(String path) {
         return "http://localhost:" + port + path;
@@ -131,6 +140,67 @@ class RoyaltyHttpIT {
         ResponseEntity<ErrorResponse> created = rest.postForEntity(base("/sale"), createReq, ErrorResponse.class);
 
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void addSale_emitsRoyaltyReportEvent() {
+        var bookId = UUID.fromString("55555555-5555-5555-5555-555555555555");
+        var createReq = Map.of(
+                "bookId", bookId.toString(),
+                "units", "100",
+                "amountEur", "550.15"
+        );
+
+        try (var consumer =
+                     createTestConsumer(
+                             "royalty-it-" + UUID.randomUUID(),
+                             RoyaltyReportEvent.class
+                     )) {
+
+            consumer.subscribe(List.of("author-royalties"));
+
+            ResponseEntity<SaleResponse> created =
+                    rest.postForEntity(base("/sale"), createReq, SaleResponse.class);
+
+            assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+            RoyaltyReportEvent event = pollForSingleRecord(consumer);
+
+            assertSoftly(s -> {
+                s.assertThat(event).isNotNull();
+                s.assertThat(event.getUnits()).isEqualTo(100L);
+                s.assertThat(event.getGrossRevenue())
+                        .isEqualByComparingTo(new BigDecimal("550.15"));
+                s.assertThat(event.getRoyaltyDue())
+                        .isGreaterThan(BigDecimal.ZERO);
+                s.assertThat(event.getPeriod()).isEqualTo("2024-08");
+            });
+        }
+    }
+
+    private <T> KafkaConsumer<String, T> createTestConsumer(
+            String groupId,
+            Class<T> valueType
+    ) {
+        Properties props = kafkaClientProperties.buildConsumerProperties(groupId);
+
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        props.put("specific.avro.value.type", valueType.getName());
+
+        return new KafkaConsumer<>(props);
+    }
+
+    private <T> T pollForSingleRecord(KafkaConsumer<String, T> consumer) {
+        long deadline = System.currentTimeMillis() + 10_000;
+
+        while (System.currentTimeMillis() < deadline) {
+            var records = consumer.poll(Duration.ofMillis(500));
+            if (!records.isEmpty()) {
+                return records.iterator().next().value();
+            }
+        }
+
+        throw new AssertionError("No Kafka message received within timeout");
     }
 
     @TestConfiguration

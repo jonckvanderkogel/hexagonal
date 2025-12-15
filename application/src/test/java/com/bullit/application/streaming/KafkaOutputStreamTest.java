@@ -1,7 +1,6 @@
 package com.bullit.application.streaming;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -15,14 +14,21 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 final class KafkaOutputStreamTest {
 
     private static final String TOPIC = "test-topic";
     private static final long WAIT_MS = 3_100;
 
-    private record TestPayload(String value) {}
+    private record TestPayload(String value) {
+    }
 
     private KafkaOutputStream<TestPayload> stream;
 
@@ -36,27 +42,22 @@ final class KafkaOutputStreamTest {
     @Test
     void emit_serializes_and_sends_message() throws Exception {
         @SuppressWarnings("unchecked")
-        KafkaProducer<String, String> producer = mock(KafkaProducer.class);
-        ObjectMapper mapper = mock(ObjectMapper.class);
+        KafkaProducer<String, TestPayload> producer = mock(KafkaProducer.class);
 
         var payload = new TestPayload("ok");
-        var json = "{\"value\":\"ok\"}";
-
-        when(mapper.writeValueAsString(payload)).thenReturn(json);
 
         when(producer.send(any(), any()))
                 .thenReturn(CompletableFuture.completedFuture(null));
 
-        stream = new KafkaOutputStream<>(TOPIC, producer, mapper);
+        stream = new KafkaOutputStream<>(TOPIC, producer);
         stream.startSendingLoop();
 
         stream.emit(payload);
 
         assertSoftly(s -> {
-            s.check(() -> verify(mapper).writeValueAsString(payload));
             s.check(() ->
                     verify(producer).send(
-                            eq(new ProducerRecord<>(TOPIC, json)),
+                            eq(new ProducerRecord<>(TOPIC, payload)),
                             any()
                     )
             );
@@ -64,38 +65,11 @@ final class KafkaOutputStreamTest {
     }
 
     @Test
-    void serialization_failure_logs_poison_and_does_not_send() throws Exception {
-        @SuppressWarnings("unchecked")
-        KafkaProducer<String, String> producer = mock(KafkaProducer.class);
-        ObjectMapper mapper = mock(ObjectMapper.class);
-
-        var payload = new TestPayload("bad");
-
-        when(mapper.writeValueAsString(payload))
-                .thenThrow(new RuntimeException("boom"));
-
-        stream = new KafkaOutputStream<>(TOPIC, producer, mapper);
-        stream.startSendingLoop();
-
-        stream.emit(payload);
-
-        Thread.sleep(200);
-
-        assertSoftly(s -> {
-            s.check(() -> verify(producer, never()).send(any(), any()));
-        });
-    }
-
-    @Test
     void async_send_failure_triggers_retry_and_eventual_success() throws JsonProcessingException {
         @SuppressWarnings("unchecked")
-        KafkaProducer<String, String> producer = mock(KafkaProducer.class);
-        ObjectMapper mapper = mock(ObjectMapper.class);
+        KafkaProducer<String, TestPayload> producer = mock(KafkaProducer.class);
 
         var payload = new TestPayload("retry");
-        var json = "{\"value\":\"retry\"}";
-
-        when(mapper.writeValueAsString(payload)).thenReturn(json);
 
         var retrySucceeded = new CountDownLatch(1);
 
@@ -117,7 +91,7 @@ final class KafkaOutputStreamTest {
                     return CompletableFuture.completedFuture(mock(RecordMetadata.class));
                 });
 
-        stream = new KafkaOutputStream<>(TOPIC, producer, mapper);
+        stream = new KafkaOutputStream<>(TOPIC, producer);
         stream.startSendingLoop();
 
         stream.emit(payload);
@@ -146,10 +120,9 @@ final class KafkaOutputStreamTest {
     @Test
     void emit_throws_when_stream_is_stopping() {
         @SuppressWarnings("unchecked")
-        KafkaProducer<String, String> producer = mock(KafkaProducer.class);
-        ObjectMapper mapper = mock(ObjectMapper.class);
+        KafkaProducer<String, TestPayload> producer = mock(KafkaProducer.class);
 
-        stream = new KafkaOutputStream<>(TOPIC, producer, mapper);
+        stream = new KafkaOutputStream<>(TOPIC, producer);
         stream.startSendingLoop();
         stream.close();
 
@@ -163,25 +136,26 @@ final class KafkaOutputStreamTest {
     @Test
     void close_drains_queue_flushes_and_closes_producer() throws Exception {
         @SuppressWarnings("unchecked")
-        KafkaProducer<String, String> producer = mock(KafkaProducer.class);
-        ObjectMapper mapper = mock(ObjectMapper.class);
+        KafkaProducer<String, TestPayload> producer = mock(KafkaProducer.class);
 
-        var payload = new TestPayload("final");
-        var json = "{\"value\":\"final\"}";
-
-        when(mapper.writeValueAsString(payload)).thenReturn(json);
+        // Arrange: synchronous send succeeds
         when(producer.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(RecordMetadata.class)));
 
-        stream = new KafkaOutputStream<>(TOPIC, producer, mapper);
+        var payload = new TestPayload("final");
+        var stream = new KafkaOutputStream<>(TOPIC, producer);
         stream.startSendingLoop();
 
+        // Act: enqueue but do NOT start worker
         stream.emit(payload);
-
         stream.close();
 
+        // Assert: shutdown contract
         assertSoftly(s -> {
-            s.check(() -> verify(producer, atLeastOnce()).send(any(ProducerRecord.class)));
+            s.check(() ->
+                    verify(producer, atLeastOnce())
+                            .send(any(ProducerRecord.class))
+            );
             s.check(() -> verify(producer).flush());
             s.check(() -> verify(producer).close());
         });
@@ -190,12 +164,11 @@ final class KafkaOutputStreamTest {
     @Test
     void close_does_not_throw_if_producer_close_fails() {
         @SuppressWarnings("unchecked")
-        KafkaProducer<String, String> producer = mock(KafkaProducer.class);
-        ObjectMapper mapper = mock(ObjectMapper.class);
+        KafkaProducer<String, TestPayload> producer = mock(KafkaProducer.class);
 
         doThrow(new RuntimeException("boom")).when(producer).close();
 
-        stream = new KafkaOutputStream<>(TOPIC, producer, mapper);
+        stream = new KafkaOutputStream<>(TOPIC, producer);
         stream.startSendingLoop();
 
         assertSoftly(s -> {

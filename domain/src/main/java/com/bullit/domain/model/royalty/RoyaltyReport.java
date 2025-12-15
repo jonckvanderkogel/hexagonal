@@ -1,5 +1,6 @@
 package com.bullit.domain.model.royalty;
 
+import com.bullit.domain.event.RoyaltyReportEvent;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -116,5 +117,24 @@ public class RoyaltyReport {
                         breakdown
                 )
         );
+    }
+
+    public static RoyaltyReportEvent toEvent(RoyaltyReport report) {
+        return RoyaltyReportEvent.newBuilder()
+                .setAuthorId(report.getAuthorId().toString())
+                .setPeriod(report.getPeriod().toString())
+                .setUnits(report.getUnits())
+                .setGrossRevenue(report.getGrossRevenue())
+                .setEffectiveRate(report.getEffectiveRate())
+                .setRoyaltyDue(report.getRoyaltyDue())
+                .setMinimumGuarantee(report.getMinimumGuarantee())
+                .setBreakdown(
+                        report
+                                .getBreakdown()
+                                .stream()
+                                .map(TierBreakdown::toEvent)
+                                .toList()
+                )
+                .build();
     }
 }

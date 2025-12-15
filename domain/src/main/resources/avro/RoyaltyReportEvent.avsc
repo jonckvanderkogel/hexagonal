@@ -1,0 +1,63 @@
+{
+  "type": "record",
+  "name": "RoyaltyReportEvent",
+  "namespace": "com.bullit.domain.event",
+  "fields": [
+    {
+      "name": "authorId",
+      "type": "string"
+    },
+    {
+      "name": "period",
+      "type": "string",
+      "doc": "YearMonth in yyyy-MM format"
+    },
+    {
+      "name": "units",
+      "type": "long"
+    },
+    {
+      "name": "grossRevenue",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 18,
+        "scale": 2
+      }
+    },
+    {
+      "name": "effectiveRate",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 18,
+        "scale": 12
+      }
+    },
+    {
+      "name": "royaltyDue",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 18,
+        "scale": 2
+      }
+    },
+    {
+      "name": "minimumGuarantee",
+      "type": {
+        "type": "bytes",
+        "logicalType": "decimal",
+        "precision": 18,
+        "scale": 2
+      }
+    },
+    {
+      "name": "breakdown",
+      "type": {
+        "type": "array",
+        "items": "com.bullit.domain.event.TierBreakdownEvent"
+      }
+    }
+  ]
+}

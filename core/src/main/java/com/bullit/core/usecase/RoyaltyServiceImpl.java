@@ -1,15 +1,16 @@
 package com.bullit.core.usecase;
 
+import com.bullit.domain.event.SaleEvent;
+import com.bullit.domain.model.royalty.RoyaltyReport;
 import com.bullit.domain.model.royalty.RoyaltyScheme;
 import com.bullit.domain.model.royalty.RoyaltyTier;
 import com.bullit.domain.model.royalty.Sale;
 import com.bullit.domain.model.royalty.TierBreakdown;
+import com.bullit.domain.model.sales.SalesSummary;
 import com.bullit.domain.model.stream.OutputStreamPort;
-import com.bullit.domain.port.driving.RoyaltyServicePort;
 import com.bullit.domain.port.driven.SaleRepositoryPort;
 import com.bullit.domain.port.driven.reporting.SalesReportingPort;
-import com.bullit.domain.model.royalty.RoyaltyReport;
-import com.bullit.domain.model.sales.SalesSummary;
+import com.bullit.domain.port.driving.RoyaltyServicePort;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -25,14 +26,14 @@ import static java.math.BigDecimal.ZERO;
 public final class RoyaltyServiceImpl implements RoyaltyServicePort {
     private final SalesReportingPort salesReportingPort;
     private final SaleRepositoryPort saleRepositoryPort;
-    private final OutputStreamPort<Sale> outputStreamPort;
+    private final OutputStreamPort<SaleEvent> outputStreamPort;
     private final RoyaltyScheme scheme;
     private final MathContext mc = new MathContext(12, RoundingMode.HALF_UP);
     private final Clock clock;
 
     public RoyaltyServiceImpl(SalesReportingPort salesReportingPort,
                               SaleRepositoryPort saleRepositoryPort,
-                              OutputStreamPort<Sale> outputStream,
+                              OutputStreamPort<SaleEvent> outputStream,
                               RoyaltyScheme scheme,
                               Clock clock) {
         this.salesReportingPort = salesReportingPort;
@@ -83,7 +84,8 @@ public final class RoyaltyServiceImpl implements RoyaltyServicePort {
                     .toList();
         }
 
-        record Acc(long prevUpper, long remaining, List<TierBreakdown> out) {}
+        record Acc(long prevUpper, long remaining, List<TierBreakdown> out) {
+        }
 
         var seed = new Acc(0L, totalUnits, List.of());
 
@@ -122,7 +124,7 @@ public final class RoyaltyServiceImpl implements RoyaltyServicePort {
     @Override
     public Sale createSale(UUID bookId, int units, BigDecimal amountEur) {
         var sale = saleRepositoryPort.addSale(Sale.createNew(bookId, units, amountEur, clock));
-        outputStreamPort.emit(sale);
+        outputStreamPort.emit(Sale.toEvent(sale));
         return sale;
     }
 }
