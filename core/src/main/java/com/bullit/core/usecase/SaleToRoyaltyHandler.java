@@ -41,6 +41,7 @@ public final class SaleToRoyaltyHandler implements StreamHandler<SaleEvent> {
 
     @PostConstruct
     void registerHandler() {
+        log.info("SaleToRoyaltyHandler registering handler");
         input.subscribe(this);
     }
 

@@ -37,8 +37,11 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
 
     @PostConstruct
     void startSendingLoop() {
-        worker = Thread.ofVirtual().start(() ->
-                blockingQueueStream().forEach(this::sendAsync)
+        log.info("KafkaOutputStream for topic {} is starting", topic);
+        worker = Thread.ofVirtual().start(() -> {
+                    log.info("Virtual thread started");
+                    blockingQueueStream().forEach(this::sendAsync);
+                }
         );
     }
 
