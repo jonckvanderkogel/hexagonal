@@ -1,56 +1,71 @@
 package com.bullit.data.adapter.driven.jpa;
 
 import com.bullit.data.adapter.driven.adapter.SaleRepositoryAdapter;
-import com.bullit.domain.error.NotFoundException;
 import com.bullit.domain.error.DatabaseInteractionException;
+import com.bullit.domain.error.NotFoundException;
 import com.bullit.domain.model.royalty.Sale;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
+import jakarta.persistence.PersistenceException;
 import jakarta.persistence.Query;
+import org.hibernate.query.NativeQuery;
+import org.hibernate.type.StandardBasicTypes;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 final class SaleRepositoryAdapterTest {
 
     private final EntityManager em = mock(EntityManager.class);
-    private final Query nativeQuery = mock(Query.class);
     private final SaleRepositoryAdapter adapter = new SaleRepositoryAdapter(em);
 
     @Test
     void addSale_happyPath_mapsRowToDomain() {
-        var saleId    = UUID.randomUUID();
-        var bookId    = UUID.randomUUID();
-        var units     = 10;
-        var amount    = new BigDecimal("100.10");
-        var soldAt    = Instant.parse("2024-01-05T00:00:00Z");
-        var input     = Sale.rehydrate(saleId, bookId, units, amount, soldAt);
+        var saleId = UUID.randomUUID();
+        var bookId = UUID.randomUUID();
+        var units = 10;
+        var amount = new BigDecimal("100.10");
+        var soldAt = Instant.parse("2024-01-05T00:00:00Z");
+        var input = Sale.rehydrate(saleId, bookId, units, amount, soldAt);
 
-        Object[] row = new Object[] {
+        Query jpaQuery = mock(Query.class);
+        @SuppressWarnings("unchecked")
+        NativeQuery<Object[]> hibernateQuery = mock(NativeQuery.class);
+
+        when(em.createNativeQuery(any(String.class))).thenReturn(jpaQuery);
+        when(jpaQuery.unwrap(NativeQuery.class)).thenReturn(hibernateQuery);
+
+        when(hibernateQuery.addScalar(eq("id"), eq(StandardBasicTypes.UUID))).thenReturn(hibernateQuery);
+        when(hibernateQuery.addScalar(eq("book_id"), eq(StandardBasicTypes.UUID))).thenReturn(hibernateQuery);
+        when(hibernateQuery.addScalar(eq("units"), eq(StandardBasicTypes.INTEGER))).thenReturn(hibernateQuery);
+        when(hibernateQuery.addScalar(eq("amount_eur"), eq(StandardBasicTypes.BIG_DECIMAL))).thenReturn(hibernateQuery);
+        when(hibernateQuery.addScalar(eq("sold_at"), eq(StandardBasicTypes.INSTANT))).thenReturn(hibernateQuery);
+
+        when(hibernateQuery.setParameter(eq("id"), eq(saleId))).thenReturn(hibernateQuery);
+        when(hibernateQuery.setParameter(eq("bookId"), eq(bookId))).thenReturn(hibernateQuery);
+        when(hibernateQuery.setParameter(eq("units"), eq(units))).thenReturn(hibernateQuery);
+        when(hibernateQuery.setParameter(eq("amount"), eq(amount))).thenReturn(hibernateQuery);
+        when(hibernateQuery.setParameter(eq("soldAt"), eq(soldAt))).thenReturn(hibernateQuery);
+
+        Object[] row = new Object[]{
                 saleId,
                 bookId,
                 units,
                 amount,
-                Timestamp.from(soldAt)
+                soldAt
         };
-
-        when(em.createNativeQuery(any(String.class))).thenReturn(nativeQuery);
-
-        when(nativeQuery.setParameter(eq("id"),     eq(saleId))).thenReturn(nativeQuery);
-        when(nativeQuery.setParameter(eq("bookId"), eq(bookId))).thenReturn(nativeQuery);
-        when(nativeQuery.setParameter(eq("units"),  eq(units))).thenReturn(nativeQuery);
-        when(nativeQuery.setParameter(eq("amount"), eq(amount))).thenReturn(nativeQuery);
-        when(nativeQuery.setParameter(eq("soldAt"), eq(soldAt))).thenReturn(nativeQuery);
-        when(nativeQuery.getSingleResult()).thenReturn(row);
+        when(hibernateQuery.getSingleResult()).thenReturn(row);
 
         var saved = adapter.addSale(input);
 
@@ -61,8 +76,9 @@ final class SaleRepositoryAdapterTest {
             s.assertThat(saved.getAmountEur()).isEqualTo(amount);
             s.assertThat(saved.getSoldAt()).isEqualTo(soldAt);
 
-            s.check(() -> verify(em, times(1)).createNativeQuery(any(String.class)));
-            s.check(() -> verify(nativeQuery, times(1)).getSingleResult());
+            s.check(() -> verify(em).createNativeQuery(any(String.class)));
+            s.check(() -> verify(jpaQuery).unwrap(NativeQuery.class));
+            s.check(() -> verify(hibernateQuery).getSingleResult());
         });
     }
 
@@ -70,12 +86,27 @@ final class SaleRepositoryAdapterTest {
     void addSale_nonExistingBook_throwsNotFound() {
         var saleId = UUID.randomUUID();
         var bookId = UUID.randomUUID();
-        var input  = Sale.rehydrate(saleId, bookId, 5, new BigDecimal("42.00"),
-                Instant.parse("2024-02-01T00:00:00Z"));
+        var input = Sale.rehydrate(
+                saleId,
+                bookId,
+                5,
+                new BigDecimal("42.00"),
+                Instant.parse("2024-02-01T00:00:00Z")
+        );
 
-        when(em.createNativeQuery(any(String.class))).thenReturn(nativeQuery);
-        when(nativeQuery.setParameter(any(String.class), any())).thenReturn(nativeQuery);
-        when(nativeQuery.getSingleResult()).thenThrow(new NoResultException("no row"));
+        Query jpaQuery = mock(Query.class);
+        @SuppressWarnings("unchecked")
+        NativeQuery<Object[]> hibernateQuery = mock(NativeQuery.class);
+
+        when(em.createNativeQuery(any(String.class))).thenReturn(jpaQuery);
+        when(jpaQuery.unwrap(NativeQuery.class)).thenReturn(hibernateQuery);
+
+        when(hibernateQuery.addScalar(anyString(), any(org.hibernate.type.BasicTypeReference.class)))
+                .thenReturn(hibernateQuery);
+        when(hibernateQuery.setParameter(anyString(), any()))
+                .thenReturn(hibernateQuery);
+        when(hibernateQuery.getSingleResult())
+                .thenThrow(new NoResultException("no row"));
 
         assertThatThrownBy(() -> adapter.addSale(input))
                 .isInstanceOf(NotFoundException.class)
@@ -83,15 +114,30 @@ final class SaleRepositoryAdapterTest {
     }
 
     @Test
-    void addSale_persistenceIssue_wrapsAsPersistenceException() {
+    void addSale_persistenceIssue_wrapsAsDatabaseInteractionException() {
         var saleId = UUID.randomUUID();
         var bookId = UUID.randomUUID();
-        var input  = Sale.rehydrate(saleId, bookId, 3, new BigDecimal("15.00"),
-                Instant.parse("2024-03-01T00:00:00Z"));
+        var input = Sale.rehydrate(
+                saleId,
+                bookId,
+                3,
+                new BigDecimal("15.00"),
+                Instant.parse("2024-03-01T00:00:00Z")
+        );
 
-        when(em.createNativeQuery(any(String.class))).thenReturn(nativeQuery);
-        when(nativeQuery.setParameter(any(String.class), any())).thenReturn(nativeQuery);
-        when(nativeQuery.getSingleResult()).thenThrow(new jakarta.persistence.PersistenceException("db down"));
+        Query jpaQuery = mock(Query.class);
+        @SuppressWarnings("unchecked")
+        NativeQuery<Object[]> hibernateQuery = mock(NativeQuery.class);
+
+        when(em.createNativeQuery(any(String.class))).thenReturn(jpaQuery);
+        when(jpaQuery.unwrap(NativeQuery.class)).thenReturn(hibernateQuery);
+
+        when(hibernateQuery.addScalar(anyString(), any(org.hibernate.type.BasicTypeReference.class)))
+                .thenReturn(hibernateQuery);
+        when(hibernateQuery.setParameter(anyString(), any()))
+                .thenReturn(hibernateQuery);
+        when(hibernateQuery.getSingleResult())
+                .thenThrow(new PersistenceException("db down"));
 
         assertThatThrownBy(() -> adapter.addSale(input))
                 .isInstanceOf(DatabaseInteractionException.class)

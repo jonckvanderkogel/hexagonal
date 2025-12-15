@@ -3,14 +3,12 @@ package com.bullit.application;
 import com.bullit.web.adapter.driving.http.Response.AuthorResponse;
 import com.bullit.web.adapter.driving.http.Response.BookResponse;
 import com.bullit.web.adapter.driving.http.Response.ErrorResponse;
-import com.github.springtestdbunit.DbUnitTestExecutionListener;
-import com.github.springtestdbunit.annotation.DatabaseSetup;
-import com.github.springtestdbunit.annotation.DbUnitConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
@@ -20,7 +18,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.TestExecutionListeners;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.net.URI;
 import java.time.Clock;
@@ -33,15 +31,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
+@ActiveProfiles("test")
 @SpringBootTest(webEnvironment = RANDOM_PORT)
-@TestExecutionListeners(
-        value = {DbUnitTestExecutionListener.class},
-        mergeMode = TestExecutionListeners.MergeMode.MERGE_WITH_DEFAULTS
-)
-@DbUnitConfiguration
-@DatabaseSetup("/dbunit/authorHttpDataset.xml")
+@AutoConfigureTestRestTemplate
 @Import(AuthorHttpIT.TestConfig.class)
-class AuthorHttpIT extends AbstractIntegrationTest {
+class AuthorHttpIT {
 
     @LocalServerPort
     int port;
@@ -161,12 +155,12 @@ class AuthorHttpIT extends AbstractIntegrationTest {
 
     @Test
     void addBookToNonExistentAuthor_returns404() {
-        var nonExistentAuthorId = UUID.fromString("44444444-4444-4444-4444-444444444444");
+        var nonExistentAuthorId = UUID.fromString("44444444-4444-4444-4444-444444444455");
         var title = "Hitchhiker's Guide to the Galaxy";
 
         var createReq = Map.of("title", title);
 
-        ResponseEntity<ErrorResponse> created = rest.postForEntity(base("/authors/{id}/books"), createReq, ErrorResponse.class, nonExistentAuthorId);
+        var created = rest.postForEntity(base("/authors/{id}/books"), createReq, ErrorResponse.class, nonExistentAuthorId);
 
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }

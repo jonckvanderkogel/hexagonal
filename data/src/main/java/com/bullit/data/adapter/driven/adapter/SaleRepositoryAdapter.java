@@ -7,9 +7,10 @@ import com.bullit.domain.port.driven.SaleRepositoryPort;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceException;
+import org.hibernate.query.NativeQuery;
+import org.hibernate.type.StandardBasicTypes;
 
 import java.math.BigDecimal;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -33,6 +34,12 @@ public final class SaleRepositoryAdapter implements SaleRepositoryPort {
         try {
             final Object[] row = (Object[]) em
                     .createNativeQuery(INSERT_WHERE_EXISTS_SQL)
+                    .unwrap(NativeQuery.class)
+                    .addScalar("id", StandardBasicTypes.UUID)
+                    .addScalar("book_id", StandardBasicTypes.UUID)
+                    .addScalar("units", StandardBasicTypes.INTEGER)
+                    .addScalar("amount_eur", StandardBasicTypes.BIG_DECIMAL)
+                    .addScalar("sold_at", StandardBasicTypes.INSTANT)
                     .setParameter("id", sale.getId())
                     .setParameter("bookId", sale.getBookId())
                     .setParameter("units", sale.getUnits())
@@ -44,7 +51,7 @@ public final class SaleRepositoryAdapter implements SaleRepositoryPort {
             final UUID bookId = (UUID) row[1];
             final int units = ((Number) row[2]).intValue();
             final BigDecimal amt = (BigDecimal) row[3];
-            final Instant soldAt = ((Timestamp) row[4]).toInstant();
+            final Instant soldAt = ((Instant) row[4]);
 
             return Sale.rehydrate(id, bookId, units, amt, soldAt);
 

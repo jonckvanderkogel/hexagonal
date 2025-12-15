@@ -4,7 +4,9 @@ spring:
   jpa:
     show-sql: true
   liquibase:
+    enabled: true
     contexts: test
+    change-log: classpath:db/changelog-test.xml
   properties:
     hibernate:
       format_sql: true

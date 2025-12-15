@@ -1,14 +1,15 @@
 package com.bullit.data.adapter.driven.adapter;
 
-import com.bullit.domain.error.NotFoundException;
 import com.bullit.domain.error.DatabaseInteractionException;
+import com.bullit.domain.error.NotFoundException;
 import com.bullit.domain.model.library.Book;
 import com.bullit.domain.port.driven.BookRepositoryPort;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceException;
+import org.hibernate.query.NativeQuery;
+import org.hibernate.type.StandardBasicTypes;
 
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -32,6 +33,11 @@ public final class BookRepositoryAdapter implements BookRepositoryPort {
         try {
             final Object[] row = (Object[]) em
                     .createNativeQuery(INSERT_WHERE_AUTHOR_EXISTS)
+                    .unwrap(NativeQuery.class)
+                    .addScalar("id", StandardBasicTypes.UUID)
+                    .addScalar("author_id", StandardBasicTypes.UUID)
+                    .addScalar("title", StandardBasicTypes.STRING)
+                    .addScalar("inserted_at", StandardBasicTypes.INSTANT)
                     .setParameter("id", book.getId())
                     .setParameter("authorId", book.getAuthorId())
                     .setParameter("title", book.getTitle())
@@ -41,7 +47,7 @@ public final class BookRepositoryAdapter implements BookRepositoryPort {
             final UUID id = (UUID) row[0];
             final UUID authorId = (UUID) row[1];
             final String title = (String) row[2];
-            final Instant created = ((Timestamp) row[3]).toInstant();
+            final Instant created = (Instant) row[3];
 
             return Book.rehydrate(id, authorId, title, created);
 

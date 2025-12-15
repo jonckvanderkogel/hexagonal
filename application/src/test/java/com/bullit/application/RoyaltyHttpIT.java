@@ -2,24 +2,22 @@ package com.bullit.application;
 
 import com.bullit.domain.model.royalty.RoyaltyScheme;
 import com.bullit.domain.model.royalty.RoyaltyTier;
-import com.bullit.web.adapter.driving.http.Response.RoyaltyReportResponse;
 import com.bullit.web.adapter.driving.http.Response.ErrorResponse;
+import com.bullit.web.adapter.driving.http.Response.RoyaltyReportResponse;
 import com.bullit.web.adapter.driving.http.Response.SaleResponse;
-import com.github.springtestdbunit.DbUnitTestExecutionListener;
-import com.github.springtestdbunit.annotation.DatabaseSetup;
-import com.github.springtestdbunit.annotation.DbUnitConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.test.context.TestExecutionListeners;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -33,15 +31,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
+@ActiveProfiles("test")
 @SpringBootTest(webEnvironment = RANDOM_PORT)
-@TestExecutionListeners(
-        value = {DbUnitTestExecutionListener.class},
-        mergeMode = TestExecutionListeners.MergeMode.MERGE_WITH_DEFAULTS
-)
-@DbUnitConfiguration
-@DatabaseSetup("/dbunit/royaltyHttpDataset.xml")
+@AutoConfigureTestRestTemplate
 @Import(RoyaltyHttpIT.TestConfig.class)
-class RoyaltyHttpIT extends AbstractIntegrationTest {
+class RoyaltyHttpIT {
 
     @LocalServerPort
     int port;
