@@ -108,7 +108,7 @@ class RoyaltyHttpIT {
     }
 
     @Test
-    void addSale_returns201() {
+    void addSale_returns201() throws InterruptedException {
         var createReq = Map.of("bookId", "55555555-5555-5555-5555-555555555555", "units", "100", "amountEur", "550.15");
         ResponseEntity<SaleResponse> created = rest.postForEntity(base("/sale"), createReq, SaleResponse.class);
 
@@ -144,9 +144,8 @@ class RoyaltyHttpIT {
 
     @Test
     void addSale_emitsRoyaltyReportEvent() {
-        var bookId = UUID.fromString("55555555-5555-5555-5555-555555555555");
         var createReq = Map.of(
-                "bookId", bookId.toString(),
+                "bookId", "55555555-5555-5555-5555-555555555555",
                 "units", "100",
                 "amountEur", "550.15"
         );

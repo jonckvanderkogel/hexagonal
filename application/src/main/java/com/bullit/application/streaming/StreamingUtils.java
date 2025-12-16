@@ -29,14 +29,16 @@ public final class StreamingUtils {
     }
 
     public static void retryWithBackoff(
+            String subject,
             int maxAttempts,
             CheckedRunnable action,
             Consumer<Exception> onPoison
     ) {
-        retryWithBackoff(maxAttempts, 1, action, onPoison);
+        retryWithBackoff(subject, maxAttempts, 1, action, onPoison);
     }
 
     private static void retryWithBackoff(
+            String subject,
             int maxAttempts,
             int attempt,
             CheckedRunnable action,
@@ -50,9 +52,9 @@ public final class StreamingUtils {
                 return;
             }
             long wait = exponentialBackoff(attempt);
-            log.warn("Retry {}/{} failed, backing off {}ms", attempt, maxAttempts, wait);
+            log.warn("Retry {}/{} for subject {} failed, backing off {}ms", attempt, maxAttempts, subject, wait);
             sleep(wait);
-            retryWithBackoff(maxAttempts, attempt + 1, action, onPoison);
+            retryWithBackoff(subject, maxAttempts, attempt + 1, action, onPoison);
         }
     }
 

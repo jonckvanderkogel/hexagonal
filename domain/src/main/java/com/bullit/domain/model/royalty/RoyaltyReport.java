@@ -7,11 +7,13 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
 
 import static com.bullit.domain.model.DomainValidator.assertValid;
+import static com.bullit.domain.model.royalty.AvroUtil.scale;
 
 public class RoyaltyReport {
     @NotNull(message = "Author ID is required.")
@@ -124,10 +126,10 @@ public class RoyaltyReport {
                 .setAuthorId(report.getAuthorId().toString())
                 .setPeriod(report.getPeriod().toString())
                 .setUnits(report.getUnits())
-                .setGrossRevenue(report.getGrossRevenue())
-                .setEffectiveRate(report.getEffectiveRate())
-                .setRoyaltyDue(report.getRoyaltyDue())
-                .setMinimumGuarantee(report.getMinimumGuarantee())
+                .setGrossRevenue(scale(report.getGrossRevenue()))
+                .setEffectiveRate(scale(report.getEffectiveRate()))
+                .setRoyaltyDue(scale(report.getRoyaltyDue()))
+                .setMinimumGuarantee(scale(report.getMinimumGuarantee()))
                 .setBreakdown(
                         report
                                 .getBreakdown()

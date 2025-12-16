@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static com.bullit.domain.model.DomainValidator.assertValid;
+import static com.bullit.domain.model.royalty.AvroUtil.scale;
 
 public class Sale {
     @NotNull(message = "Sale id is required")
@@ -102,7 +103,7 @@ public class Sale {
                 .setId(sale.getId().toString())
                 .setBookId(sale.getBookId().toString())
                 .setUnits(sale.getUnits())
-                .setAmountEur(sale.getAmountEur())
+                .setAmountEur(scale(sale.getAmountEur()))
                 .setSoldAt(sale.getSoldAt().toEpochMilli())
                 .build();
     }

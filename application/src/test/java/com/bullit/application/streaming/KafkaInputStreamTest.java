@@ -18,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
@@ -83,7 +84,7 @@ final class KafkaInputStreamTest {
         doAnswer(_ -> {
             committed.countDown();
             return null;
-        }).when(consumer).commitSync();
+        }).when(consumer).commitSync(anyMap());
 
         when(consumer.poll(any(Duration.class)))
                 .thenReturn(records(payload))
@@ -92,11 +93,15 @@ final class KafkaInputStreamTest {
         stream = new KafkaInputStream<>(TOPIC, consumer);
         stream.subscribe(handler);
 
-        assertSoftly(s -> {
-            s.check(() -> assertThat(committed.await(1, TimeUnit.SECONDS)).isTrue());
-            s.check(() -> verify(handler).handle(payload));
-            s.check(() -> verify(consumer).commitSync());
-        });
+        try {
+            assertSoftly(s -> {
+                s.check(() -> assertThat(committed.await(1, TimeUnit.SECONDS)).isTrue());
+                s.check(() -> verify(handler).handle(payload));
+                s.check(() -> verify(consumer).commitSync(anyMap()));
+            });
+        } finally {
+            stream.close();
+        }
     }
 
     @Test

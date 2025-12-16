@@ -3,6 +3,7 @@ package com.bullit.application.streaming;
 import com.bullit.domain.model.stream.InputStreamPort;
 import com.bullit.domain.model.stream.OutputStreamPort;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.slf4j.Logger;
@@ -14,6 +15,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.ResolvableType;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Configuration
 @EnableConfigurationProperties({
@@ -28,6 +32,9 @@ public class StreamBootstrap {
     private final KafkaClientProperties kafkaProps;
     private final AutowireCapableBeanFactory factory;
 
+    private List<KafkaInputStream<?>> inputStreams;
+    private List<KafkaOutputStream<?>> outputStreams;
+
     public StreamBootstrap(StreamConfigProperties config,
                            KafkaClientProperties kafkaProps,
                            AutowireCapableBeanFactory factory,
@@ -41,55 +48,74 @@ public class StreamBootstrap {
     @PostConstruct
     public void bootstrapStreams() {
         log.info("Bootstrapping streams");
-        createOutputStreams();
-        createInputStreams();
+
+        outputStreams = createOutputStreams();
+        inputStreams = createInputStreams();
         createHandlers();
     }
 
-    private void createOutputStreams() {
-        BeanDefinitionRegistry registry =
-                (BeanDefinitionRegistry) context.getAutowireCapableBeanFactory();
-
-        config.outputs().forEach(cfg -> {
-            log.info("Bootstrapping output stream for topic: {}", cfg.topic());
-            var payloadType = cfg.payloadType();
-            var beanName = "outputStream:" + payloadType.getName();
-
-            var resolvableType = ResolvableType
-                    .forClassWithGenerics(OutputStreamPort.class, payloadType);
-
-            var kafkaProducer = new KafkaProducer<>(kafkaProps.buildProducerProperties());
-
-            var beanDef = new RootBeanDefinition(KafkaOutputStream.class);
-            beanDef.setTargetType(resolvableType);
-            beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.topic());
-            beanDef.getConstructorArgumentValues().addGenericArgumentValue(kafkaProducer);
-
-            registry.registerBeanDefinition(beanName, beanDef);
-        });
+    @PreDestroy
+    public void shutdownStreams() {
+        log.info("Shutting down input streams");
+        inputStreams.forEach(KafkaInputStream::close);
+        log.info("Shutting down output streams");
+        outputStreams.forEach(KafkaOutputStream::close);
     }
 
-    private void createInputStreams() {
-        BeanDefinitionRegistry registry =
-                (BeanDefinitionRegistry) context.getAutowireCapableBeanFactory();
+    private List<KafkaOutputStream<?>> createOutputStreams() {
+        var registry = (BeanDefinitionRegistry) context.getAutowireCapableBeanFactory();
 
-        config.inputs().forEach(cfg -> {
-            log.info("Bootstrapping input stream for topic: {}", cfg.topic());
+        return config.outputs().stream()
+                .map(cfg -> {
+                    log.info("Bootstrapping output stream for topic: {}", cfg.topic());
 
-            var beanName = "inputStream:" + cfg.payloadType().getName();
+                    var producer = new KafkaProducer<String, Object>(kafkaProps.buildProducerProperties());
 
-            var type = ResolvableType
-                    .forClassWithGenerics(InputStreamPort.class, cfg.payloadType());
+                    var resolvableType = ResolvableType
+                            .forClassWithGenerics(
+                                    OutputStreamPort.class,
+                                    cfg.payloadType()
+                            );
 
-            var consumer = new KafkaConsumer<>(kafkaProps.buildConsumerProperties(cfg.groupId()));
+                    var beanDef = new RootBeanDefinition(KafkaOutputStream.class);
+                    beanDef.setTargetType(resolvableType);
+                    beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.topic());
+                    beanDef.getConstructorArgumentValues().addGenericArgumentValue(producer);
 
-            var beanDef = new RootBeanDefinition(KafkaInputStream.class);
-            beanDef.setTargetType(type);
-            beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.topic());
-            beanDef.getConstructorArgumentValues().addGenericArgumentValue(consumer);
+                    var beanName = "outputStream:" + cfg.payloadType().getName();
+                    registry.registerBeanDefinition(beanName, beanDef);
 
-            registry.registerBeanDefinition(beanName, beanDef);
-        });
+                    return (KafkaOutputStream<?>) context.getBean(beanName);
+                })
+                .collect(Collectors.toUnmodifiableList());
+    }
+
+    private List<KafkaInputStream<?>> createInputStreams() {
+        var registry = (BeanDefinitionRegistry) context.getAutowireCapableBeanFactory();
+
+        return config.inputs().stream()
+                .map(cfg -> {
+                    log.info("Bootstrapping input stream for topic: {}", cfg.topic());
+
+                    var consumer = new KafkaConsumer<String, Object>(kafkaProps.buildConsumerProperties(cfg.groupId()));
+
+                    var resolvableType = ResolvableType
+                            .forClassWithGenerics(
+                                    InputStreamPort.class,
+                                    cfg.payloadType()
+                            );
+
+                    var beanDef = new RootBeanDefinition(KafkaInputStream.class);
+                    beanDef.setTargetType(resolvableType);
+                    beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.topic());
+                    beanDef.getConstructorArgumentValues().addGenericArgumentValue(consumer);
+
+                    var beanName = "inputStream:" + cfg.payloadType().getName();
+                    registry.registerBeanDefinition(beanName, beanDef);
+
+                    return (KafkaInputStream<?>) context.getBean(beanName);
+                })
+                .collect(Collectors.toUnmodifiableList());
     }
 
     private void createHandlers() {

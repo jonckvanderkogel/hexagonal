@@ -4,18 +4,25 @@ import com.bullit.domain.model.stream.InputStreamPort;
 import com.bullit.domain.model.stream.StreamHandler;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Map;
 
 import static com.bullit.application.streaming.StreamingUtils.retryWithBackoff;
 import static com.bullit.application.streaming.StreamingUtils.runUntilInterrupted;
 
-public final class KafkaInputStream<T> implements InputStreamPort<T>, AutoCloseable {
+public final class KafkaInputStream<T> implements InputStreamPort<T> {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaInputStream.class);
+    private static final int HANDLE_RETRIES = 5;
+    private static final int COMMIT_RETRIES = 5;
+    private final String commitRetrySubject;
+    private final String handleRetrySubject;
 
     private final KafkaConsumer<String, T> consumer;
     private final String topic;
@@ -28,6 +35,8 @@ public final class KafkaInputStream<T> implements InputStreamPort<T>, AutoClosea
                             KafkaConsumer<String, T> consumer) {
         this.topic = topic;
         this.consumer = consumer;
+        this.commitRetrySubject = "handling input stream commit for topic %s".formatted(topic);
+        this.handleRetrySubject = "handling input stream message for topic %s".formatted(topic);
     }
 
     @Override
@@ -55,18 +64,47 @@ public final class KafkaInputStream<T> implements InputStreamPort<T>, AutoClosea
 
     private void consumeMessages() {
         var records = consumer.poll(Duration.ofSeconds(1));
-        records.forEach(rec ->
-                retryWithBackoff(
-                        5,
-                        () -> processInboundMessage(rec),
-                        e -> logPoisonRecord(rec, e)
-                )
+        records.forEach(this::processRecord);
+    }
+
+    private void processRecord(ConsumerRecord<String, T> rec) {
+        retryWithBackoff(
+                handleRetrySubject,
+                HANDLE_RETRIES,
+                () -> handleOnce(rec),
+                e -> logPoisonRecord(rec, e)
+        );
+
+        retryWithBackoff(
+                commitRetrySubject,
+                COMMIT_RETRIES,
+                () -> commitOffset(rec),
+                e -> logCommitFailure(rec, e)
         );
     }
 
-    private void processInboundMessage(ConsumerRecord<String, T> rec) {
+    private void handleOnce(ConsumerRecord<String, T> rec) {
+        log.debug("Processing inbound message: {}", rec);
         handler.handle(rec.value());
-        consumer.commitSync();
+        log.debug("Handled message: {}", rec);
+    }
+
+    private void commitOffset(ConsumerRecord<String, T> rec) {
+        var tp = new TopicPartition(rec.topic(), rec.partition());
+        var nextOffset = new OffsetAndMetadata(rec.offset() + 1);
+
+        consumer.commitSync(Map.of(tp, nextOffset));
+        log.debug("Consumer committed for message: {}", rec);
+    }
+
+    private void logCommitFailure(ConsumerRecord<String, T> rec, Exception e) {
+        log.error("""
+                Commit failed after retries
+                Topic: {}
+                Partition: {}
+                Offset: {}
+                Error: {}
+                """, rec.topic(), rec.partition(), rec.offset(), e.toString());
     }
 
     private void logPoisonRecord(ConsumerRecord<String, T> rec, Exception e) {
@@ -79,7 +117,6 @@ public final class KafkaInputStream<T> implements InputStreamPort<T>, AutoClosea
                 """, topic, rec.offset(), rec.value(), e.toString());
     }
 
-    @Override
     public void close() {
         stopping = true;
         consumer.wakeup();

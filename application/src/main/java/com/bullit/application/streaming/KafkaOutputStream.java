@@ -14,7 +14,7 @@ import java.util.stream.Stream;
 
 import static com.bullit.application.streaming.StreamingUtils.retryWithBackoff;
 
-public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoCloseable {
+public final class KafkaOutputStream<T> implements OutputStreamPort<T> {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaOutputStream.class);
 
@@ -25,6 +25,7 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
     private final String topic;
     private final KafkaProducer<String, T> producer;
     private final BlockingQueue<T> queue = new LinkedBlockingQueue<>(MAX_BUFFER_SIZE);
+    private final String sendRetrySubject;
 
     private Thread worker;
     private volatile boolean stopping = false;
@@ -33,6 +34,7 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
                              KafkaProducer<String, T> kafkaProducer) {
         this.topic = topic;
         this.producer = kafkaProducer;
+        this.sendRetrySubject = "sending output stream message for topic %s".formatted(topic);
     }
 
     @PostConstruct
@@ -65,6 +67,7 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
                         log.error("Received error: {}", element, exception);
                         Thread.ofVirtual().start(() ->
                                 retryWithBackoff(
+                                        sendRetrySubject,
                                         MAX_RETRY_ATTEMPTS,
                                         () -> retrySendSynchronously(element),
                                         ex -> logPoisonMessage(element, ex)
@@ -101,7 +104,6 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
         }
     }
 
-    @Override
     public void close() {
         stopping = true;
         worker.interrupt();
@@ -117,6 +119,7 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
                 .takeWhile(Objects::nonNull)
                 .forEach(element ->
                         retryWithBackoff(
+                                "draining remaining queue for output stream for topic %s".formatted(topic),
                                 MAX_RETRY_ATTEMPTS_ON_SHUTDOWN,
                                 () -> sendSynchronously(element),
                                 ex -> logPoisonMessage(element, ex)

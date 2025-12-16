@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
 import static com.bullit.domain.model.DomainValidator.assertValid;
+import static com.bullit.domain.model.royalty.AvroUtil.scale;
 
 public class TierBreakdown {
     @Min(value = 0, message = "Cannot have negative units in tier.")
@@ -48,8 +49,8 @@ public class TierBreakdown {
         return TierBreakdownEvent
                 .newBuilder()
                 .setUnitsInTier(tierBreakdown.getUnitsInTier())
-                .setAppliedRate(tierBreakdown.getAppliedRate())
-                .setRoyaltyAmount(tierBreakdown.getRoyaltyAmount())
+                .setAppliedRate(scale(tierBreakdown.getAppliedRate()))
+                .setRoyaltyAmount(scale(tierBreakdown.getRoyaltyAmount()))
                 .build();
     }
 }
