@@ -12,7 +12,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Stream;
 
-import static com.bullit.application.streaming.StreamingUtils.retryWithBackoff;
+import static com.bullit.application.FunctionUtils.retryWithBackoff;
 
 public final class KafkaOutputStream<T> implements OutputStreamPort<T> {
 

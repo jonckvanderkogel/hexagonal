@@ -3,6 +3,7 @@ package com.bullit.application.streaming;
 import com.bullit.domain.model.stream.InputStreamPort;
 import com.bullit.domain.model.stream.StreamHandler;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -12,13 +13,15 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
-import static com.bullit.application.streaming.StreamingUtils.retryWithBackoff;
-import static com.bullit.application.streaming.StreamingUtils.runUntilInterrupted;
+import static com.bullit.application.FunctionUtils.retryWithBackoff;
+import static com.bullit.application.FunctionUtils.runUntilInterrupted;
 
 public final class KafkaInputStream<T> implements InputStreamPort<T> {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaInputStream.class);
+    private static final int POLL_RETRIES = 10;
     private static final int HANDLE_RETRIES = 5;
     private static final int COMMIT_RETRIES = 5;
     private final String commitRetrySubject;
@@ -35,6 +38,7 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
                             KafkaConsumer<String, T> consumer) {
         this.topic = topic;
         this.consumer = consumer;
+
         this.commitRetrySubject = "handling input stream commit for topic %s".formatted(topic);
         this.handleRetrySubject = "handling input stream message for topic %s".formatted(topic);
     }
@@ -63,8 +67,19 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
     }
 
     private void consumeMessages() {
-        var records = consumer.poll(Duration.ofSeconds(1));
-        records.forEach(this::processRecord);
+        pollRecords().ifPresent(records -> records.forEach(this::processRecord));
+    }
+
+    private Optional<ConsumerRecords<String, T>> pollRecords() {
+        return retryWithBackoff(
+                "Polling for new record",
+                POLL_RETRIES,
+                () -> consumer.poll(Duration.ofSeconds(1)),
+                e -> {
+                    log.error("Error during polling topic: {}", topic, e);
+                    return Optional.empty();
+                }
+        );
     }
 
     private void processRecord(ConsumerRecord<String, T> rec) {
