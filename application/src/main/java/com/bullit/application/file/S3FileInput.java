@@ -1,9 +1,9 @@
 package com.bullit.application.file;
 
-import com.bullit.domain.model.file.FileEnvelope;
-import com.bullit.domain.model.file.FileHandler;
-import com.bullit.domain.model.file.FileInputPort;
-import com.bullit.domain.model.file.FileTarget;
+import com.bullit.domain.port.driven.file.FileEnvelope;
+import com.bullit.domain.port.driving.file.FileHandler;
+import com.bullit.domain.port.driven.file.FileInputPort;
+import com.bullit.domain.port.driven.file.FileTarget;
 import io.minio.CopyObjectArgs;
 import io.minio.CopySource;
 import io.minio.GetObjectArgs;

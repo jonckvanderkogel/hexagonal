@@ -1,4 +1,4 @@
-package com.bullit.domain.model.stream;
+package com.bullit.domain.port.driving.stream;
 
 @FunctionalInterface
 public interface StreamHandler<T> {

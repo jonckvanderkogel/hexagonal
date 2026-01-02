@@ -1,7 +1,7 @@
 package com.bullit.application.streaming;
 
-import com.bullit.domain.model.stream.InputStreamPort;
-import com.bullit.domain.model.stream.StreamHandler;
+import com.bullit.domain.port.driven.stream.InputStreamPort;
+import com.bullit.domain.port.driving.stream.StreamHandler;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;

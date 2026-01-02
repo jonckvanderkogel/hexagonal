@@ -1,6 +1,6 @@
 package com.bullit.application.file;
 
-import com.bullit.domain.model.file.FileHandler;
+import com.bullit.domain.port.driving.file.FileHandler;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;

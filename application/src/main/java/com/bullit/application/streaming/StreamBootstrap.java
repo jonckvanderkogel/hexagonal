@@ -1,7 +1,7 @@
 package com.bullit.application.streaming;
 
-import com.bullit.domain.model.stream.InputStreamPort;
-import com.bullit.domain.model.stream.OutputStreamPort;
+import com.bullit.domain.port.driven.stream.InputStreamPort;
+import com.bullit.domain.port.driven.stream.OutputStreamPort;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.apache.kafka.clients.consumer.KafkaConsumer;

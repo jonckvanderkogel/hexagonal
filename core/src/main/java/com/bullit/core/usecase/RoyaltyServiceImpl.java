@@ -7,7 +7,7 @@ import com.bullit.domain.model.royalty.RoyaltyTier;
 import com.bullit.domain.model.royalty.Sale;
 import com.bullit.domain.model.royalty.TierBreakdown;
 import com.bullit.domain.model.sales.SalesSummary;
-import com.bullit.domain.model.stream.OutputStreamPort;
+import com.bullit.domain.port.driven.stream.OutputStreamPort;
 import com.bullit.domain.port.driven.SaleRepositoryPort;
 import com.bullit.domain.port.driven.reporting.SalesReportingPort;
 import com.bullit.domain.port.driving.RoyaltyServicePort;

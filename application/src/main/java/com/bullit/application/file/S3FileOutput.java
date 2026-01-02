@@ -1,7 +1,7 @@
 package com.bullit.application.file;
 
-import com.bullit.domain.model.file.FileOutputPort;
-import com.bullit.domain.model.file.FileTarget;
+import com.bullit.domain.port.driven.file.FileOutputPort;
+import com.bullit.domain.port.driven.file.FileTarget;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.minio.PutObjectArgs;
 import io.minio.MinioClient;

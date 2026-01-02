@@ -1,6 +1,6 @@
 package com.bullit.application.streaming;
 
-import com.bullit.domain.model.stream.StreamHandler;
+import com.bullit.domain.port.driving.stream.StreamHandler;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.List;

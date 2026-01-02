@@ -11,7 +11,7 @@ import com.bullit.data.adapter.driven.jpa.SaleJpaRepository;
 import com.bullit.domain.event.SaleEvent;
 import com.bullit.domain.model.royalty.RoyaltyScheme;
 import com.bullit.domain.model.royalty.RoyaltyTier;
-import com.bullit.domain.model.stream.OutputStreamPort;
+import com.bullit.domain.port.driven.stream.OutputStreamPort;
 import com.bullit.domain.port.driven.AuthorRepositoryPort;
 import com.bullit.domain.port.driven.BookRepositoryPort;
 import com.bullit.domain.port.driven.SaleRepositoryPort;

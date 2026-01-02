@@ -1,6 +1,6 @@
 package com.bullit.application.streaming;
 
-import com.bullit.domain.model.stream.OutputStreamPort;
+import com.bullit.domain.port.driven.stream.OutputStreamPort;
 import jakarta.annotation.PostConstruct;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;

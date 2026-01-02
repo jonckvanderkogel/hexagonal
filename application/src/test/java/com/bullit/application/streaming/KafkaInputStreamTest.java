@@ -1,6 +1,6 @@
 package com.bullit.application.streaming;
 
-import com.bullit.domain.model.stream.StreamHandler;
+import com.bullit.domain.port.driving.stream.StreamHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
