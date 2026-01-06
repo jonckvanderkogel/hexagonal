@@ -11,17 +11,23 @@ import com.bullit.data.adapter.driven.jpa.SaleJpaRepository;
 import com.bullit.domain.event.SaleEvent;
 import com.bullit.domain.model.royalty.RoyaltyScheme;
 import com.bullit.domain.model.royalty.RoyaltyTier;
-import com.bullit.domain.port.driven.stream.OutputStreamPort;
 import com.bullit.domain.port.driven.AuthorRepositoryPort;
 import com.bullit.domain.port.driven.BookRepositoryPort;
 import com.bullit.domain.port.driven.SaleRepositoryPort;
 import com.bullit.domain.port.driven.reporting.SalesReportingPort;
+import com.bullit.domain.port.driven.stream.OutputStreamPort;
 import com.bullit.domain.port.driving.LibraryServicePort;
 import com.bullit.domain.port.driving.RoyaltyServicePort;
 import com.bullit.web.adapter.driving.http.AuthorHttpHandler;
 import com.bullit.web.adapter.driving.http.HttpErrorFilter;
 import com.bullit.web.adapter.driving.http.RoyaltyHttpHandler;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.module.paramnames.ParameterNamesModule;
 import jakarta.persistence.EntityManager;
+import org.apache.avro.specific.SpecificRecordBase;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.function.HandlerFilterFunction;
@@ -39,6 +45,17 @@ public class BeansConfig {
     @Bean
     public Clock clock() {
         return Clock.systemUTC();
+    }
+
+    @Bean
+    public ObjectMapper objectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.addMixIn(SpecificRecordBase.class, AvroSpecificRecordMixin.class);
+        mapper.registerModule(new JavaTimeModule());
+        mapper.registerModule(new Jdk8Module());
+        mapper.registerModule(new ParameterNamesModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return mapper;
     }
 
     @Bean

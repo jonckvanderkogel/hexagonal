@@ -32,5 +32,6 @@ build/
 
 ### VS Code ###
 .vscode/
-/garage-data/
-/garage-meta/
+
+### Application ###
+/application/s3-credentials.env

@@ -1,6 +1,6 @@
 package com.bullit.domain.port.driven.file;
 
-public record FileTarget(
+public record FileLocation(
         String bucket,
         String objectKey
 ) {}

@@ -25,11 +25,29 @@ logging:
   level:
     org.hibernate.SQL: warn
 
+garage:
+  admin:
+    host: localhost
+    port: 3903
+    secure: false
+    token: ${GARAGE_ADMIN_TOKEN:admin-token-change-me}
+
+s3:
+  endpoint: localhost
+  port: 3900
+  secure: false
+  access-key: ${S3_ACCESS_KEY:}
+  secret-key: ${S3_SECRET_KEY:}
+  region: garage
+
 streams:
   inputs:
     - payload-type: com.bullit.domain.event.SaleEvent
       topic: raw-sales
       group-id: sale-to-royalty
+    - payload-type: com.bullit.domain.event.RoyaltyReportEvent
+      topic: author-royalties
+      group-id: royalty-report-to-s3
   outputs:
     - payload-type: com.bullit.domain.event.SaleEvent
       topic: raw-sales
@@ -37,3 +55,20 @@ streams:
       topic: author-royalties
   handlers:
     - handler-class: com.bullit.core.usecase.SaleToRoyaltyHandler
+    - handler-class: com.bullit.core.usecase.RoyaltyReportToS3FileHandler
+
+files:
+  inputs:
+    - payload-type: com.bullit.domain.model.royalty.Sale
+      bucket: raw-sales
+      incoming-prefix: incoming
+      handled-prefix: handled
+      error-prefix: error
+      poll-interval: 1s
+
+  outputs:
+    - payload-type: com.bullit.domain.event.RoyaltyReportEvent
+      bucket: royalty-reports
+
+  handlers:
+    - handler-class: com.bullit.core.usecase.SaleFileToKafkaHandler

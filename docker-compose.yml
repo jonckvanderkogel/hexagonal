@@ -14,7 +14,7 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     ports:
-      - 22181:2181
+      - "22181:2181"
 
   schema-registry:
     image: confluentinc/cp-schema-registry:latest
@@ -29,7 +29,7 @@ services:
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
 
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.7.7
     container_name: kafka
     depends_on:
       - zookeeper
@@ -54,22 +54,39 @@ services:
     depends_on:
       - kafka
     ports:
-      - 9000:8080
+      - "9000:8080"
 
   garage:
     image: dxflrs/garage:v2.1.0
     container_name: garage
     volumes:
       - ./garage.toml:/etc/garage.toml:ro
-      - ./garage-meta:/var/lib/garage/meta
-      - ./garage-data:/var/lib/garage/data
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+      - ./scripts/garage-healthcheck.sh:/opt/garage/garage-healthcheck.sh:ro
     restart: unless-stopped
     ports:
       - "3900:3900"
       - "3901:3901"
       - "3903:3903"
 
-  webui:
+  garage-init:
+    build:
+      context: .
+      dockerfile: garage-init/Dockerfile
+    container_name: garage-init
+    depends_on:
+      - garage
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+      - ./scripts/garage-layout-bootstrap.sh:/opt/garage/garage-layout-bootstrap.sh:ro
+    restart: unless-stopped
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: [ "/opt/garage/garage-layout-bootstrap.sh && echo 'garage-init completed' && tail -f /dev/null" ]
+
+  garage-webui:
     image: khairul169/garage-webui:latest
     container_name: garage-webui
     restart: unless-stopped
@@ -83,4 +100,8 @@ services:
 
 volumes:
   database-data:
+    driver: local
+  garage-meta:
+    driver: local
+  garage-data:
     driver: local

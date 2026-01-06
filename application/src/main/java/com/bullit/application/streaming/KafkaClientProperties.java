@@ -4,17 +4,23 @@ import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;
 import io.confluent.kafka.serializers.KafkaAvroSerializer;
+import jakarta.validation.constraints.NotBlank;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
 import java.util.Properties;
 
+@Validated
 @ConfigurationProperties(prefix = "kafka")
 public record KafkaClientProperties(
+        @NotBlank(message = "kafka.bootstrap-servers is required")
         String bootstrapServers,
+
+        @NotBlank(message = "kafka.schema-registry-url is required")
         String schemaRegistryUrl
 ) {
 

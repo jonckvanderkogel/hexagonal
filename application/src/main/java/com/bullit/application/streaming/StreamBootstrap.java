@@ -8,7 +8,6 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -30,18 +29,15 @@ public class StreamBootstrap {
     private final ApplicationContext context;
     private final StreamConfigProperties config;
     private final KafkaClientProperties kafkaProps;
-    private final AutowireCapableBeanFactory factory;
 
     private List<KafkaInputStream<?>> inputStreams;
     private List<KafkaOutputStream<?>> outputStreams;
 
     public StreamBootstrap(StreamConfigProperties config,
                            KafkaClientProperties kafkaProps,
-                           AutowireCapableBeanFactory factory,
                            ApplicationContext context) {
         this.config = config;
         this.kafkaProps = kafkaProps;
-        this.factory = factory;
         this.context = context;
     }
 
@@ -51,7 +47,6 @@ public class StreamBootstrap {
 
         outputStreams = createOutputStreams();
         inputStreams = createInputStreams();
-        createHandlers();
     }
 
     @PreDestroy
@@ -65,7 +60,7 @@ public class StreamBootstrap {
     private List<KafkaOutputStream<?>> createOutputStreams() {
         var registry = (BeanDefinitionRegistry) context.getAutowireCapableBeanFactory();
 
-        return config.outputs().stream()
+        return config.outputsOrEmpty().stream()
                 .map(cfg -> {
                     log.info("Bootstrapping output stream for topic: {}", cfg.topic());
 
@@ -93,7 +88,7 @@ public class StreamBootstrap {
     private List<KafkaInputStream<?>> createInputStreams() {
         var registry = (BeanDefinitionRegistry) context.getAutowireCapableBeanFactory();
 
-        return config.inputs().stream()
+        return config.inputsOrEmpty().stream()
                 .map(cfg -> {
                     log.info("Bootstrapping input stream for topic: {}", cfg.topic());
 
@@ -116,12 +111,5 @@ public class StreamBootstrap {
                     return (KafkaInputStream<?>) context.getBean(beanName);
                 })
                 .collect(Collectors.toUnmodifiableList());
-    }
-
-    private void createHandlers() {
-        config.handlers().forEach(cfg -> {
-            log.info("Bootstrapping handler for class: {}", cfg.handlerClass());
-            factory.createBean(cfg.handlerClass());
-        });
     }
 }

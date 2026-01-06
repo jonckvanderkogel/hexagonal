@@ -1,9 +1,9 @@
 package com.bullit.application.file;
 
 import com.bullit.domain.port.driven.file.FileEnvelope;
-import com.bullit.domain.port.driving.file.FileHandler;
 import com.bullit.domain.port.driven.file.FileInputPort;
-import com.bullit.domain.port.driven.file.FileTarget;
+import com.bullit.domain.port.driven.file.FileLocation;
+import com.bullit.domain.port.driving.file.FileHandler;
 import io.minio.CopyObjectArgs;
 import io.minio.CopySource;
 import io.minio.GetObjectArgs;
@@ -60,14 +60,15 @@ public final class S3FileInput<T> implements FileInputPort<T> {
             Duration pollInterval
     ) {
         this.client = Objects.requireNonNull(client, "client is required");
-        this.bucket = requireNonBlank(bucket);
+        this.bucket = bucket;
 
-        this.incomingPrefix = normalizePrefix(incomingPrefix);
-        this.handledPrefix = normalizePrefix(handledPrefix);
-        this.errorPrefix = normalizePrefix(errorPrefix);
-        this.pollInterval = pollInterval == null ? Duration.ofSeconds(1) : pollInterval;
-        this.listObjectsRetrySubject = "listing incoming objects in bucket %s prefix '%s'".formatted(bucket, incomingPrefix);
-        validateConfiguration();
+        this.incomingPrefix = incomingPrefix;
+        this.handledPrefix = handledPrefix;
+        this.errorPrefix = errorPrefix;
+        this.pollInterval = pollInterval;
+
+        this.listObjectsRetrySubject =
+                "listing incoming objects in bucket %s prefix '%s'".formatted(bucket, incomingPrefix);
     }
 
     @Override
@@ -160,7 +161,7 @@ public final class S3FileInput<T> implements FileInputPort<T> {
              var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
         ) {
 
-            handler.handle(new FileEnvelope(new FileTarget(bucket, objectKey), reader.lines()));
+            handler.handle(new FileEnvelope(new FileLocation(bucket, objectKey), reader.lines()));
         }
 
         moveToHandled(objectKey);
@@ -270,23 +271,6 @@ public final class S3FileInput<T> implements FileInputPort<T> {
         }
     }
 
-    private void validateConfiguration() {
-        if (incomingPrefix.isEmpty()) {
-            if (!handledPrefix.isEmpty() || !errorPrefix.isEmpty()) {
-                throw new IllegalArgumentException("handledPrefix/errorPrefix must be empty when incomingPrefix is empty");
-            }
-            return;
-        }
-
-        if (handledPrefix.isEmpty() || errorPrefix.isEmpty()) {
-            throw new IllegalArgumentException("handledPrefix and errorPrefix must be set when incomingPrefix is set");
-        }
-
-        if (incomingPrefix.equals(handledPrefix) || incomingPrefix.equals(errorPrefix)) {
-            throw new IllegalArgumentException("handledPrefix/errorPrefix must differ from incomingPrefix");
-        }
-    }
-
     private void requireIncomingObjectKey(String objectKey) {
         if (objectKey == null || objectKey.isBlank()) {
             throw new IllegalStateException("objectKey is required");
@@ -296,19 +280,6 @@ public final class S3FileInput<T> implements FileInputPort<T> {
                     "Object key '%s' does not start with configured incomingPrefix '%s'".formatted(objectKey, incomingPrefix)
             );
         }
-    }
-
-    private static String normalizePrefix(String prefix) {
-        var p = prefix == null ? "" : prefix.trim();
-        if (p.isEmpty()) return "";
-        return p.endsWith("/") ? p : (p + "/");
-    }
-
-    private static String requireNonBlank(String value) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException("Bucket name is required");
-        }
-        return value.trim();
     }
 
     private static void sleep(Duration d) {

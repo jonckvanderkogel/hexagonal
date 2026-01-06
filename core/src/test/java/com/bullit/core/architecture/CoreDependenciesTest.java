@@ -42,7 +42,7 @@ public class CoreDependenciesTest {
                     );
 
     @ArchTest
-    static final ArchRule core_should_depend_only_on_domain_or_itself_for_project_code =
+    static final ArchRule core_should_depend_only_on_domain_and_allowed_packages_project_code =
             noClasses().that().resideInAnyPackage("com.bullit.core..")
                     .should().dependOnClassesThat().resideOutsideOfPackages(
                             "com.bullit.domain..",
@@ -50,6 +50,7 @@ public class CoreDependenciesTest {
                             "java..",
                             "javax..",
                             "jakarta..",
+                            "com.fasterxml.jackson..",
                             "org.slf4j.."
                     );
 }
