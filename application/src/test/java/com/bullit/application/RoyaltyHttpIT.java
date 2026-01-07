@@ -7,8 +7,6 @@ import com.bullit.domain.model.royalty.RoyaltyTier;
 import com.bullit.web.adapter.driving.http.Response.ErrorResponse;
 import com.bullit.web.adapter.driving.http.Response.RoyaltyReportResponse;
 import com.bullit.web.adapter.driving.http.Response.SaleResponse;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
@@ -25,14 +23,14 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.UUID;
 
+import static com.bullit.application.TestUtils.createTestConsumer;
+import static com.bullit.application.TestUtils.pollForSingleRecord;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
@@ -152,6 +150,7 @@ class RoyaltyHttpIT {
 
         try (var consumer =
                      createTestConsumer(
+                             kafkaClientProperties,
                              "royalty-it-" + UUID.randomUUID(),
                              RoyaltyReportEvent.class
                      )) {
@@ -175,31 +174,6 @@ class RoyaltyHttpIT {
                 s.assertThat(event.getPeriod()).isEqualTo("2024-08");
             });
         }
-    }
-
-    private <T> KafkaConsumer<String, T> createTestConsumer(
-            String groupId,
-            Class<T> valueType
-    ) {
-        Properties props = kafkaClientProperties.buildConsumerProperties(groupId);
-
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put("specific.avro.value.type", valueType.getName());
-
-        return new KafkaConsumer<>(props);
-    }
-
-    private <T> T pollForSingleRecord(KafkaConsumer<String, T> consumer) {
-        long deadline = System.currentTimeMillis() + 10_000;
-
-        while (System.currentTimeMillis() < deadline) {
-            var records = consumer.poll(Duration.ofMillis(500));
-            if (!records.isEmpty()) {
-                return records.iterator().next().value();
-            }
-        }
-
-        throw new AssertionError("No Kafka message received within timeout");
     }
 
     @TestConfiguration

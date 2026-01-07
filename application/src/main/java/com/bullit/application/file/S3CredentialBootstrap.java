@@ -67,23 +67,16 @@ public final class S3CredentialBootstrap {
     private S3Credentials createAndPersistCredentials() {
         log.info("S3 credentials missing; creating via Garage admin API");
         var created = admin.createAccessKey(defaultKeyName());
-        exposeForCurrentRunAndPersist(created);
+        persistCredentialsFile(created);
         return created;
     }
 
-    private void exposeForCurrentRunAndPersist(S3Credentials credentials) {
-        exposeToCurrentProcess(credentials);
+    private void persistCredentialsFile(S3Credentials credentials) {
         persistEnvFile(credentials);
     }
 
     private String defaultKeyName() {
         return "hexagonal-app";
-    }
-
-    private void exposeToCurrentProcess(S3Credentials credentials) {
-        System.setProperty(ACCESS_KEY_ENV, credentials.getAccessKey());
-        System.setProperty(SECRET_KEY_ENV, credentials.getSecretKey());
-        log.info("S3 credentials set as System properties for current run");
     }
 
     private void persistEnvFile(S3Credentials credentials) {

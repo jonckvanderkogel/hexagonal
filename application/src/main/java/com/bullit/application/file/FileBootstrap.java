@@ -31,10 +31,10 @@ public class FileBootstrap {
 
     private final ApplicationContext context;
     private final FileConfigProperties config;
-    private final S3ClientProperties s3Props;
     private final ObjectMapper objectMapper;
-    private final S3CredentialBootstrap credentialBootstrap;
     private final GarageAdminClient garageAdmin;
+    private final MinioClient minioClient;
+    private final S3Credentials s3Credentials;
 
     private List<S3FileInput<?>> inputs;
     private List<S3FileOutput<?>> outputs;
@@ -42,36 +42,27 @@ public class FileBootstrap {
     public FileBootstrap(
             ApplicationContext context,
             FileConfigProperties config,
-            S3ClientProperties s3Props,
             ObjectMapper objectMapper,
-            S3CredentialBootstrap credentialBootstrap,
-            GarageAdminClient garageAdmin
+            S3Credentials s3Credentials,
+            GarageAdminClient garageAdmin,
+            MinioClient minioClient
     ) {
         this.context = context;
         this.config = config;
-        this.s3Props = s3Props;
         this.objectMapper = objectMapper;
-        this.credentialBootstrap = credentialBootstrap;
         this.garageAdmin = garageAdmin;
+        this.s3Credentials = s3Credentials;
+        this.minioClient = minioClient;
     }
 
     @PostConstruct
     public void bootstrapFiles() {
         log.info("Bootstrapping file ports");
 
-        var credentials = credentialBootstrap.ensureS3Credentials();
+        ensureBucketsForConfiguredPorts(s3Credentials.getAccessKey());
 
-        ensureBucketsForConfiguredPorts(credentials.getAccessKey());
-
-        var effectiveProps = s3Props.withCredentials(
-                credentials.getAccessKey(),
-                credentials.getSecretKey()
-        );
-
-        var client = S3ClientFactory.create(effectiveProps);
-
-        outputs = createOutputPorts(client);
-        inputs = createInputPorts(client);
+        outputs = createOutputPorts(minioClient);
+        inputs = createInputPorts(minioClient);
     }
 
     private void ensureBucketsForConfiguredPorts(String accessKeyId) {
