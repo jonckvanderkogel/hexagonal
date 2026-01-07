@@ -20,6 +20,7 @@ spring:
       stop:
         command: down
         arguments: -v
+        timeout: 60s
 
 
 logging:

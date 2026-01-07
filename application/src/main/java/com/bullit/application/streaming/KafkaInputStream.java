@@ -21,7 +21,7 @@ import static com.bullit.application.FunctionUtils.runUntilInterrupted;
 public final class KafkaInputStream<T> implements InputStreamPort<T> {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaInputStream.class);
-    private static final int POLL_RETRIES = 10;
+    private static final int POLL_RETRIES = 5;
     private static final int HANDLE_RETRIES = 5;
     private static final int COMMIT_RETRIES = 5;
     private final String commitRetrySubject;
@@ -78,7 +78,8 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
                 e -> {
                     log.error("Error during polling topic: {}", topic, e);
                     return Optional.empty();
-                }
+                },
+                log
         );
     }
 
@@ -87,14 +88,16 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
                 handleRetrySubject,
                 HANDLE_RETRIES,
                 () -> handleOnce(rec),
-                e -> logPoisonRecord(rec, e)
+                e -> logPoisonRecord(rec, e),
+                log
         );
 
         retryWithBackoff(
                 commitRetrySubject,
                 COMMIT_RETRIES,
                 () -> commitOffset(rec),
-                e -> logCommitFailure(rec, e)
+                e -> logCommitFailure(rec, e),
+                log
         );
     }
 

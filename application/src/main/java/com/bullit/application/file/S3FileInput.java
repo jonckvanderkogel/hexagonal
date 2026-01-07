@@ -28,6 +28,7 @@ import java.util.stream.Stream;
 
 import static com.bullit.application.FunctionUtils.retryWithBackoff;
 import static com.bullit.application.FunctionUtils.runUntilInterrupted;
+import static com.bullit.application.FunctionUtils.sleep;
 import static java.util.stream.StreamSupport.stream;
 
 public final class S3FileInput<T> implements FileInputPort<T> {
@@ -102,12 +103,12 @@ public final class S3FileInput<T> implements FileInputPort<T> {
         return retryWithBackoff(
                 listObjectsRetrySubject,
                 LIST_RETRIES,
-                () -> fetchIncoming()
-                        .toList(),
+                () -> fetchIncoming().toList(),
                 e -> {
                     log.error("Poison during listing of objects: {}", listObjectsRetrySubject, e);
                     return Optional.of(List.<Item>of());
-                }
+                },
+                log
         ).orElse(List.of());
     }
 
@@ -143,7 +144,8 @@ public final class S3FileInput<T> implements FileInputPort<T> {
                 subject,
                 HANDLE_RETRIES,
                 () -> handleOnce(objectKey),
-                e -> moveToError(objectKey, e)
+                e -> moveToError(objectKey, e),
+                log
         );
     }
 
@@ -191,14 +193,16 @@ public final class S3FileInput<T> implements FileInputPort<T> {
                 copySubject,
                 MOVE_RETRIES,
                 () -> idempotentCopy(srcKey, dstKey),
-                ex -> log.error("Poison during copy: {}", copySubject, ex)
+                ex -> log.error("Poison during copy: {}", copySubject, ex),
+                log
         );
 
         retryWithBackoff(
                 deleteSubject,
                 MOVE_RETRIES,
                 () -> idempotentDelete(srcKey),
-                ex -> log.error("Poison during delete: {}", deleteSubject, ex)
+                ex -> log.error("Poison during delete: {}", deleteSubject, ex),
+                log
         );
     }
 
@@ -279,14 +283,6 @@ public final class S3FileInput<T> implements FileInputPort<T> {
             throw new IllegalStateException(
                     "Object key '%s' does not start with configured incomingPrefix '%s'".formatted(objectKey, incomingPrefix)
             );
-        }
-    }
-
-    private static void sleep(Duration d) {
-        try {
-            Thread.sleep(d.toMillis());
-        } catch (InterruptedException ignored) {
-            Thread.currentThread().interrupt();
         }
     }
 }

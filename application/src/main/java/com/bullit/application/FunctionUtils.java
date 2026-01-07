@@ -2,8 +2,8 @@ package com.bullit.application;
 
 import org.apache.kafka.common.errors.WakeupException;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -12,8 +12,6 @@ import java.util.function.Supplier;
 public final class FunctionUtils {
     private FunctionUtils() {
     }
-
-    private static final Logger log = LoggerFactory.getLogger(FunctionUtils.class);
 
     @FunctionalInterface
     public interface CheckedRunnable {
@@ -39,18 +37,20 @@ public final class FunctionUtils {
             String subject,
             int maxAttempts,
             CheckedRunnable action,
-            Consumer<Exception> onPoison
+            Consumer<Exception> onPoison,
+            Logger log
     ) {
-        retryWithBackoff(subject, maxAttempts, 1, action, onPoison);
+        retryWithBackoff(subject, maxAttempts, 1, action, onPoison, log);
     }
 
     public static <T> Optional<T> retryWithBackoff(
             String subject,
             int maxAttempts,
             CheckedSupplier<T> action,
-            Function<Exception, Optional<T>> onPoison
+            Function<Exception, Optional<T>> onPoison,
+            Logger log
     ) {
-        return retryWithBackoff(subject, maxAttempts, 1, action, onPoison);
+        return retryWithBackoff(subject, maxAttempts, 1, action, onPoison, log);
     }
 
     private static void retryWithBackoff(
@@ -58,7 +58,8 @@ public final class FunctionUtils {
             int maxAttempts,
             int attempt,
             CheckedRunnable action,
-            Consumer<Exception> onPoison
+            Consumer<Exception> onPoison,
+            Logger log
     ) {
         try {
             action.run();
@@ -67,10 +68,10 @@ public final class FunctionUtils {
                 onPoison.accept(e);
                 return;
             }
-            long wait = exponentialBackoff(attempt);
-            extracted(subject, maxAttempts, attempt, wait);
+            var wait = exponentialBackoff(attempt);
+            extracted(subject, maxAttempts, attempt, wait, log);
             sleep(wait);
-            retryWithBackoff(subject, maxAttempts, attempt + 1, action, onPoison);
+            retryWithBackoff(subject, maxAttempts, attempt + 1, action, onPoison, log);
         }
     }
 
@@ -79,7 +80,8 @@ public final class FunctionUtils {
             int maxAttempts,
             int attempt,
             CheckedSupplier<T> action,
-            Function<Exception, Optional<T>> onPoison
+            Function<Exception, Optional<T>> onPoison,
+            Logger log
     ) {
         try {
             return Optional.ofNullable(action.get());
@@ -87,24 +89,24 @@ public final class FunctionUtils {
             if (attempt >= maxAttempts || Thread.currentThread().isInterrupted()) {
                 return onPoison.apply(e);
             }
-            long wait = exponentialBackoff(attempt);
-            extracted(subject, maxAttempts, attempt, wait);
+            var wait = exponentialBackoff(attempt);
+            extracted(subject, maxAttempts, attempt, wait, log);
             sleep(wait);
-            return retryWithBackoff(subject, maxAttempts, attempt + 1, action, onPoison);
+            return retryWithBackoff(subject, maxAttempts, attempt + 1, action, onPoison, log);
         }
     }
 
-    private static void extracted(String subject, int maxAttempts, int attempt, long wait) {
+    private static void extracted(String subject, int maxAttempts, int attempt, Duration wait, Logger log) {
         log.warn("Retry {}/{} for subject {} failed, backing off {}ms", attempt, maxAttempts, subject, wait);
     }
 
-    private static long exponentialBackoff(int attempt) {
-        return (long) Math.pow(2, attempt) * 100; // 200ms → 1600ms
+    private static Duration exponentialBackoff(int attempt) {
+        return Duration.ofMillis((long) Math.pow(2, attempt) * 100); // 200ms → 1600ms
     }
 
-    private static void sleep(long ms) {
+    public static void sleep(Duration t) {
         try {
-            Thread.sleep(ms);
+            Thread.sleep(t);
         } catch (InterruptedException ignored) {
         }
     }

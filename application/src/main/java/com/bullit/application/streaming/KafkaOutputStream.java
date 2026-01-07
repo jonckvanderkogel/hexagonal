@@ -70,7 +70,8 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T> {
                                         sendRetrySubject,
                                         MAX_RETRY_ATTEMPTS,
                                         () -> retrySendSynchronously(element),
-                                        ex -> logPoisonMessage(element, ex)
+                                        ex -> logPoisonMessage(element, ex),
+                                        log
                                 )
                         );
                     }
@@ -122,7 +123,8 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T> {
                                 "draining remaining queue for output stream for topic %s".formatted(topic),
                                 MAX_RETRY_ATTEMPTS_ON_SHUTDOWN,
                                 () -> sendSynchronously(element),
-                                ex -> logPoisonMessage(element, ex)
+                                ex -> logPoisonMessage(element, ex),
+                                log
                         )
                 );
     }

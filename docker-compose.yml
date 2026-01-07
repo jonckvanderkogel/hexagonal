@@ -1,3 +1,4 @@
+name: hexagonal
 services:
   database:
     image: postgres:17.4
@@ -69,6 +70,8 @@ services:
       - "3900:3900"
       - "3901:3901"
       - "3903:3903"
+    stop_grace_period: 2s
+    stop_signal: SIGTERM
 
   garage-init:
     build:
@@ -82,9 +85,9 @@ services:
       - garage-meta:/var/lib/garage/meta
       - garage-data:/var/lib/garage/data
       - ./scripts/garage-layout-bootstrap.sh:/opt/garage/garage-layout-bootstrap.sh:ro
+      - ./scripts/garage-init-entrypoint.sh:/opt/garage/garage-init-entrypoint.sh:ro
     restart: unless-stopped
-    entrypoint: [ "/bin/sh", "-c" ]
-    command: [ "/opt/garage/garage-layout-bootstrap.sh && echo 'garage-init completed' && tail -f /dev/null" ]
+    entrypoint: [ "/opt/garage/garage-init-entrypoint.sh" ]
 
   garage-webui:
     image: khairul169/garage-webui:latest

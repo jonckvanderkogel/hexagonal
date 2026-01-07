@@ -12,9 +12,13 @@ import java.io.OutputStreamWriter;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+
+import static com.bullit.application.FunctionUtils.sleep;
 
 public final class S3FileOutput<T> implements FileOutputPort<T> {
 
@@ -22,11 +26,13 @@ public final class S3FileOutput<T> implements FileOutputPort<T> {
 
     private static final int PIPE_BUFFER_BYTES = 64 * 1024;
     private static final long PART_SIZE_BYTES = 10L * 1024 * 1024; // 10 MiB
+    private static final Duration SHUTDOWN_POLL = Duration.ofMillis(50);
 
     private final String bucket;
     private final MinioClient client;
     private final ObjectMapper mapper;
 
+    private final AtomicInteger inFlight = new AtomicInteger(0);
     private volatile boolean stopping = false;
 
     public S3FileOutput(String bucket, MinioClient client, ObjectMapper mapper) {
@@ -37,12 +43,26 @@ public final class S3FileOutput<T> implements FileOutputPort<T> {
 
     @Override
     public void emit(Stream<T> contents, String objectKey) {
-        if (stopping) throw new IllegalStateException("S3FileOutput is shutting down");
+        throwIfStopping();
 
+        inFlight.incrementAndGet();
         try (contents) {
             putObjectStreaming(objectKey, contents);
             log.info("Wrote S3 object {}/{}", bucket, objectKey);
+        } finally {
+            inFlight.decrementAndGet();
         }
+    }
+
+    public void close() {
+        stopping = true;
+        waitForInflightToFinish();
+        log.info("S3FileOutput shut down cleanly");
+    }
+
+    private void throwIfStopping() {
+        if (!stopping) return;
+        throw new IllegalStateException("S3FileOutput is shutting down");
     }
 
     private void putObjectStreaming(String objectKey, Stream<T> contents) {
@@ -102,22 +122,18 @@ public final class S3FileOutput<T> implements FileOutputPort<T> {
 
     private void throwIfWriterFailed(AtomicReference<Throwable> writerFailure) {
         var t = writerFailure.get();
-        switch (t) {
-            case null -> {
-                return;
-            }
-            case RuntimeException re -> throw re;
-            case Error err -> throw err;
-            default -> {
-            }
-        }
+        if (t == null) return;
+
+        if (t instanceof RuntimeException re) throw re;
+        if (t instanceof Error err) throw err;
 
         throw new IllegalStateException("Failed while streaming json lines", t);
     }
 
-    public void close() {
-        stopping = true;
-        log.info("S3FileOutput shut down cleanly");
+    private void waitForInflightToFinish() {
+        while (inFlight.get() > 0 && !Thread.currentThread().isInterrupted()) {
+            sleep(SHUTDOWN_POLL);
+        }
     }
 
     private static void join(Thread t) {
