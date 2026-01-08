@@ -22,7 +22,9 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.bullit.application.TestUtils.createTestProducer;
+import static com.bullit.application.TestUtils.normalizeNewlines;
 import static com.bullit.application.TestUtils.objectExists;
+import static com.bullit.application.TestUtils.readObject;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
@@ -42,11 +44,11 @@ class RoyaltyReportToS3FileIT {
     MinioClient minioClient;
 
     @Test
-    void producingRoyaltyReportEvent_writesJsonFileToS3() {
+    void producingRoyaltyReportEvent_writesCsvFileToS3_withExpectedContents() {
         var authorId = UUID.randomUUID().toString();
         var period = "2024-08";
 
-        var expectedKey = "%s/%s.json".formatted(authorId, period);
+        var expectedKey = "%s/%s.csv".formatted(authorId, period);
 
         var event = RoyaltyReportEvent.newBuilder()
                 .setAuthorId(authorId)
@@ -61,6 +63,11 @@ class RoyaltyReportToS3FileIT {
                                 .setUnitsInTier(100L)
                                 .setAppliedRate(new BigDecimal("0.10"))
                                 .setRoyaltyAmount(new BigDecimal("50.00"))
+                                .build(),
+                        TierBreakdownEvent.newBuilder()
+                                .setUnitsInTier(20L)
+                                .setAppliedRate(new BigDecimal("0.20"))
+                                .setRoyaltyAmount(new BigDecimal("50.00"))
                                 .build()
                 ))
                 .build();
@@ -69,8 +76,20 @@ class RoyaltyReportToS3FileIT {
 
         assertSoftly(s -> {
             s.assertThat(objectExists(minioClient, BUCKET, expectedKey))
-                    .as("expected royalty report file to exist in S3")
+                    .as("expected royalty report CSV to exist in S3")
                     .isTrue();
+        });
+
+        var csv = readObject(minioClient, BUCKET, expectedKey);
+        var normalized = normalizeNewlines(csv);
+
+        var expected = """
+                authorId,period,units,grossRevenue,effectiveRate,royaltyDue,minimumGuarantee,tiers
+                %s,%s,120,600.00,0.17,100.00,100.00,100:0.10:50.00|20:0.20:50.00
+                """.formatted(authorId, period);
+
+        assertSoftly(s -> {
+            s.assertThat(normalized).isEqualTo(normalizeNewlines(expected));
         });
     }
 
@@ -95,8 +114,7 @@ class RoyaltyReportToS3FileIT {
                                     com.bullit.domain.event.RoyaltyReportEvent.class,
                                     INPUT_TOPIC,
                                     "royalty-report-to-s3-it"
-                            )
-                    ),
+                            )),
                     List.of(
                             new StreamConfigProperties.OutputConfig(
                                     com.bullit.domain.event.SaleEvent.class,

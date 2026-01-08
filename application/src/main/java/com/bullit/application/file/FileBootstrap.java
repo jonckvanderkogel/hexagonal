@@ -2,7 +2,6 @@ package com.bullit.application.file;
 
 import com.bullit.domain.port.driven.file.FileInputPort;
 import com.bullit.domain.port.driven.file.FileOutputPort;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.minio.MinioClient;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -31,7 +30,6 @@ public class FileBootstrap {
 
     private final ApplicationContext context;
     private final FileConfigProperties config;
-    private final ObjectMapper objectMapper;
     private final GarageAdminClient garageAdmin;
     private final MinioClient minioClient;
     private final S3Credentials s3Credentials;
@@ -42,14 +40,12 @@ public class FileBootstrap {
     public FileBootstrap(
             ApplicationContext context,
             FileConfigProperties config,
-            ObjectMapper objectMapper,
             S3Credentials s3Credentials,
             GarageAdminClient garageAdmin,
             MinioClient minioClient
     ) {
         this.context = context;
         this.config = config;
-        this.objectMapper = objectMapper;
         this.garageAdmin = garageAdmin;
         this.s3Credentials = s3Credentials;
         this.minioClient = minioClient;
@@ -124,7 +120,6 @@ public class FileBootstrap {
                     beanDef.setTargetType(resolvableType);
                     beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.bucket());
                     beanDef.getConstructorArgumentValues().addGenericArgumentValue(client);
-                    beanDef.getConstructorArgumentValues().addGenericArgumentValue(objectMapper);
 
                     var beanName = "fileOutput:" + cfg.payloadType().getName();
                     registry.registerBeanDefinition(beanName, beanDef);

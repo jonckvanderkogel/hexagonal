@@ -1,6 +1,6 @@
 package com.bullit.application.file;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.bullit.domain.port.driven.file.CsvRecordMapping;
 import io.minio.MinioClient;
 import io.minio.ObjectWriteResponse;
 import io.minio.PutObjectArgs;
@@ -26,6 +26,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import static com.bullit.application.TestUtils.normalizeNewlines;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,10 +39,15 @@ import static org.mockito.Mockito.when;
 final class S3FileOutputTest {
 
     private static final String BUCKET = "test-bucket";
-    private static final String OBJECT_KEY = "out/test.ndjson";
+    private static final String OBJECT_KEY = "out/test.csv";
 
     private record TestPayload(String value) {
     }
+
+    private static final CsvRecordMapping<TestPayload> MAPPING = CsvRecordMapping.of(
+            List.of("value"),
+            p -> List.of(p.value())
+    );
 
     private S3FileOutput<TestPayload> out;
 
@@ -51,9 +57,8 @@ final class S3FileOutputTest {
     }
 
     @Test
-    void emit_streams_ndjson_and_calls_putObject_once_with_expected_args() throws ServerException, InsufficientDataException, ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException, InternalException {
+    void emit_streams_csv_and_calls_putObject_once_with_expected_args() throws ServerException, InsufficientDataException, ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException, InternalException {
         MinioClient client = mock(MinioClient.class);
-        ObjectMapper mapper = new ObjectMapper();
 
         var wrote = new CountDownLatch(1);
         var capturedBody = new ByteArrayOutputStream();
@@ -70,9 +75,9 @@ final class S3FileOutputTest {
                     return mock(ObjectWriteResponse.class);
                 });
 
-        out = new S3FileOutput<>(BUCKET, client, mapper);
+        out = new S3FileOutput<>(BUCKET, client);
 
-        out.emit(List.of(new TestPayload("a"), new TestPayload("b")).stream(), OBJECT_KEY);
+        out.emit(List.of(new TestPayload("a"), new TestPayload("b")).stream(), OBJECT_KEY, MAPPING);
 
         boolean done = await(wrote, 1, TimeUnit.SECONDS);
 
@@ -85,26 +90,23 @@ final class S3FileOutputTest {
             s.assertThat(args.bucket()).isEqualTo(BUCKET);
             s.assertThat(args.object()).isEqualTo(OBJECT_KEY);
 
-            s.assertThat(safeContentType(args)).isEqualTo("application/x-ndjson");
+            s.assertThat(safeContentType(args)).isEqualTo("text/csv; charset=utf-8");
 
-            var body = capturedBody.toString(StandardCharsets.UTF_8);
-            s.assertThat(body).isEqualTo(
-                    "{\"value\":\"a\"}\n" +
-                            "{\"value\":\"b\"}\n"
-            );
+            var body = normalizeNewlines(capturedBody.toString(StandardCharsets.UTF_8));
+
+            s.assertThat(body.stripTrailing()).isEqualTo(("value\na\nb").stripTrailing());
         });
     }
 
     @Test
     void close_then_emit_throws_and_does_not_call_putObject() {
         MinioClient client = mock(MinioClient.class);
-        ObjectMapper mapper = new ObjectMapper();
 
-        out = new S3FileOutput<>(BUCKET, client, mapper);
+        out = new S3FileOutput<>(BUCKET, client);
         out.close();
 
         assertSoftly(s -> {
-            s.assertThatThrownBy(() -> out.emit(Stream.of(new TestPayload("x")), OBJECT_KEY))
+            s.assertThatThrownBy(() -> out.emit(Stream.of(new TestPayload("x")), OBJECT_KEY, MAPPING))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("shutting down");
 
@@ -113,12 +115,15 @@ final class S3FileOutputTest {
     }
 
     @Test
-    void serialization_failure_is_propagated_and_putObject_is_attempted_once() throws IOException, ServerException, InsufficientDataException, ErrorResponseException, NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException, InternalException {
+    void mapping_failure_is_propagated_and_putObject_is_attempted_once() throws IOException, ServerException, InsufficientDataException, ErrorResponseException, NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException, InternalException {
         MinioClient client = mock(MinioClient.class);
-        ObjectMapper mapper = mock(ObjectMapper.class);
 
-        when(mapper.writeValueAsString(any()))
-                .thenThrow(new RuntimeException("boom"));
+        CsvRecordMapping<TestPayload> badMapping = CsvRecordMapping.of(
+                List.of("value"),
+                (TestPayload ignored) -> {
+                    throw new RuntimeException("boom");
+                }
+        );
 
         when(client.putObject(any(PutObjectArgs.class)))
                 .thenAnswer(invocation -> {
@@ -127,24 +132,20 @@ final class S3FileOutputTest {
                     return mock(ObjectWriteResponse.class);
                 });
 
-        out = new S3FileOutput<>(BUCKET, client, mapper);
+        out = new S3FileOutput<>(BUCKET, client);
 
         assertSoftly(s -> {
-            s.assertThatThrownBy(() -> out.emit(Stream.of(new TestPayload("x")), OBJECT_KEY))
+            s.assertThatThrownBy(() -> out.emit(Stream.of(new TestPayload("x")), OBJECT_KEY, badMapping))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("Failed writing S3 object " + BUCKET + "/" + OBJECT_KEY);
 
-            s.check(
-                    () -> verify(client, times(1))
-                            .putObject(any(PutObjectArgs.class))
-            );
+            s.check(() -> verify(client, times(1)).putObject(any(PutObjectArgs.class)));
         });
     }
 
     @Test
     void close_waits_for_inflight_emit_to_finish() throws ServerException, InsufficientDataException, ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException, InternalException {
         MinioClient client = mock(MinioClient.class);
-        ObjectMapper mapper = new ObjectMapper();
 
         var allowPutToReturn = new CountDownLatch(1);
         var putStarted = new CountDownLatch(1);
@@ -163,12 +164,12 @@ final class S3FileOutputTest {
                     return mock(ObjectWriteResponse.class);
                 });
 
-        out = new S3FileOutput<>(BUCKET, client, mapper);
+        out = new S3FileOutput<>(BUCKET, client);
 
         var emitFinished = new CountDownLatch(1);
         Thread.ofVirtual().start(() -> {
             try {
-                out.emit(Stream.of(new TestPayload("x")), OBJECT_KEY);
+                out.emit(Stream.of(new TestPayload("x")), OBJECT_KEY, MAPPING);
             } finally {
                 emitFinished.countDown();
             }

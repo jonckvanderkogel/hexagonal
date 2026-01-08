@@ -4,5 +4,5 @@ import com.bullit.domain.port.driven.file.FileEnvelope;
 
 @FunctionalInterface
 public interface FileHandler<T> {
-    void handle(FileEnvelope file);
+    void handle(FileEnvelope<T> file);
 }

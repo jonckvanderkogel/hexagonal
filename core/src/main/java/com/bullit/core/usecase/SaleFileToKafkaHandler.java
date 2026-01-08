@@ -2,16 +2,19 @@ package com.bullit.core.usecase;
 
 import com.bullit.domain.event.SaleEvent;
 import com.bullit.domain.model.royalty.Sale;
+import com.bullit.domain.port.driven.file.CsvRow;
 import com.bullit.domain.port.driven.file.FileEnvelope;
 import com.bullit.domain.port.driven.file.FileInputPort;
 import com.bullit.domain.port.driven.stream.OutputStreamPort;
 import com.bullit.domain.port.driving.file.FileHandler;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.stream.Stream;
+import static com.bullit.domain.port.driven.file.CsvValues.requiredDecimal;
+import static com.bullit.domain.port.driven.file.CsvValues.requiredInstant;
+import static com.bullit.domain.port.driven.file.CsvValues.requiredInt;
+import static com.bullit.domain.port.driven.file.CsvValues.requiredUuid;
 
 public final class SaleFileToKafkaHandler implements FileHandler<Sale> {
 
@@ -19,44 +22,37 @@ public final class SaleFileToKafkaHandler implements FileHandler<Sale> {
 
     private final FileInputPort<Sale> input;
     private final OutputStreamPort<SaleEvent> output;
-    private final ObjectMapper mapper;
 
     public SaleFileToKafkaHandler(
             FileInputPort<Sale> input,
-            OutputStreamPort<SaleEvent> output,
-            ObjectMapper mapper
+            OutputStreamPort<SaleEvent> output
     ) {
         this.input = input;
         this.output = output;
-        this.mapper = mapper;
     }
 
     @PostConstruct
     void register() {
         log.info("SaleFileToKafkaHandler registering file handler");
-        input.subscribe(this);
+        input.subscribe(this, this::mapSale);
     }
 
     @Override
-    public void handle(FileEnvelope file) {
+    public void handle(FileEnvelope<Sale> file) {
         log.info("Handling sale file: {}/{}", file.location().bucket(), file.location().objectKey());
 
-        parseSales(file.lines())
+        file.records()
                 .map(Sale::toEvent)
                 .forEach(output::emit);
     }
 
-    private Stream<Sale> parseSales(Stream<String> lines) {
-        return lines
-                .filter(s -> !s.isBlank())
-                .map(this::parseSaleJson);
-    }
-
-    private Sale parseSaleJson(String json) {
-        try {
-            return mapper.readValue(json, Sale.class);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid sale json line", e);
-        }
+    private Sale mapSale(CsvRow row) {
+        return Sale.rehydrate(
+                requiredUuid(row, "id"),
+                requiredUuid(row, "bookId"),
+                requiredInt(row, "units"),
+                requiredDecimal(row, "amountEur"),
+                requiredInstant(row, "soldAt")
+        );
     }
 }

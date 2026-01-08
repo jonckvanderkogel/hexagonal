@@ -2,6 +2,8 @@ package com.bullit.application;
 
 import com.bullit.application.streaming.KafkaClientProperties;
 import com.bullit.domain.event.RoyaltyReportEvent;
+import com.bullit.domain.event.SaleEvent;
+import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.StatObjectArgs;
@@ -36,8 +38,11 @@ public class TestUtils {
         return new KafkaConsumer<>(props);
     }
 
-    public static <T> T pollForSingleRecord(KafkaConsumer<String, T> consumer) {
-        long deadline = System.currentTimeMillis() + 10_000;
+    public static <T> T pollForSingleRecord(
+            KafkaConsumer<String, T> consumer,
+            Duration timeout
+    ) {
+        var deadline = System.currentTimeMillis() + timeout.toMillis();
 
         while (System.currentTimeMillis() < deadline) {
             var records = consumer.poll(Duration.ofMillis(500));
@@ -47,6 +52,41 @@ public class TestUtils {
         }
 
         throw new AssertionError("No Kafka message received within timeout");
+    }
+
+    public static <T> boolean pollForAnyRecord(
+            KafkaConsumer<String, T> consumer,
+            Duration timeout
+    ) {
+        var deadline = System.currentTimeMillis() + timeout.toMillis();
+
+        while (System.currentTimeMillis() < deadline) {
+            var records = consumer.poll(Duration.ofMillis(250));
+            if (!records.isEmpty()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static void awaitAssignment(KafkaConsumer<?, ?> consumer) {
+        var deadline = System.currentTimeMillis() + 10_000;
+
+        while (System.currentTimeMillis() < deadline) {
+            consumer.poll(Duration.ofMillis(200));
+            if (!consumer.assignment().isEmpty()) {
+                return;
+            }
+        }
+
+        throw new AssertionError("Kafka consumer did not receive partition assignment within timeout");
+    }
+
+    public static void seekToEnd(KafkaConsumer<?, ?> consumer) {
+        consumer.poll(Duration.ofMillis(200));
+        consumer.seekToEnd(consumer.assignment());
+        consumer.poll(Duration.ofMillis(200));
     }
 
     public static void putObject(MinioClient minioClient,
@@ -62,7 +102,7 @@ public class TestUtils {
                             .bucket(bucket)
                             .object(objectKey)
                             .stream(in, bytes.length, -1)
-                            .contentType("application/x-ndjson")
+                            .contentType("text/csv; charset=utf-8")
                             .build()
             );
         } catch (Exception e) {
@@ -71,8 +111,8 @@ public class TestUtils {
     }
 
     public static boolean objectExists(MinioClient minioClient,
-                                        String bucket,
-                                        String objectKey
+                                       String bucket,
+                                       String objectKey
     ) {
         var deadline = System.currentTimeMillis() + 10_000;
 
@@ -84,6 +124,26 @@ public class TestUtils {
         }
 
         return false;
+    }
+
+    public static String readObject(MinioClient minioClient, String bucket, String objectKey) {
+        try (var in = minioClient.getObject(
+                GetObjectArgs.builder()
+                        .bucket(bucket)
+                        .object(objectKey)
+                        .build()
+        )) {
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "Failed to read S3 object %s/%s".formatted(bucket, objectKey),
+                    e
+            );
+        }
+    }
+
+    public static String normalizeNewlines(String s) {
+        return s.replace("\r\n", "\n").replace("\r", "\n");
     }
 
     private static void sleep(Duration duration) {

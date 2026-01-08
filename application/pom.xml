@@ -8,6 +8,10 @@
     </parent>
     <artifactId>application</artifactId>
 
+    <properties>
+        <fastcsv.version>4.1.0</fastcsv.version>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.bullit</groupId>
@@ -78,6 +82,11 @@
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp-urlconnection</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>de.siegmar</groupId>
+            <artifactId>fastcsv</artifactId>
+            <version>${fastcsv.version}</version>
         </dependency>
 
         <dependency>

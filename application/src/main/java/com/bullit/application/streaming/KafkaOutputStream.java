@@ -60,9 +60,11 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T> {
     }
 
     private void sendAsync(T element) {
+        log.info("Sending async event for topic {}", topic);
         producer.send(
                 new ProducerRecord<>(topic, element),
                 (_, exception) -> {
+                    log.info("Callback triggered for topic {} and element {}", topic, element);
                     if (exception != null) {
                         log.error("Received error: {}", element, exception);
                         Thread.ofVirtual().start(() ->

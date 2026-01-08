@@ -1,7 +1,8 @@
 package com.bullit.application.file;
 
+import com.bullit.domain.port.driven.file.CsvRecordMapping;
 import com.bullit.domain.port.driven.file.FileOutputPort;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import de.siegmar.fastcsv.writer.CsvWriter;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import org.slf4j.Logger;
@@ -13,6 +14,7 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -30,24 +32,22 @@ public final class S3FileOutput<T> implements FileOutputPort<T> {
 
     private final String bucket;
     private final MinioClient client;
-    private final ObjectMapper mapper;
 
     private final AtomicInteger inFlight = new AtomicInteger(0);
     private volatile boolean stopping = false;
 
-    public S3FileOutput(String bucket, MinioClient client, ObjectMapper mapper) {
+    public S3FileOutput(String bucket, MinioClient client) {
         this.bucket = bucket;
         this.client = Objects.requireNonNull(client, "client is required");
-        this.mapper = Objects.requireNonNull(mapper, "mapper is required");
     }
 
     @Override
-    public void emit(Stream<T> contents, String objectKey) {
+    public void emit(Stream<T> contents, String objectKey, CsvRecordMapping<T> mapping) {
         throwIfStopping();
 
         inFlight.incrementAndGet();
         try (contents) {
-            putObjectStreaming(objectKey, contents);
+            putObjectStreaming(objectKey, contents, mapping);
             log.info("Wrote S3 object {}/{}", bucket, objectKey);
         } finally {
             inFlight.decrementAndGet();
@@ -65,20 +65,20 @@ public final class S3FileOutput<T> implements FileOutputPort<T> {
         throw new IllegalStateException("S3FileOutput is shutting down");
     }
 
-    private void putObjectStreaming(String objectKey, Stream<T> contents) {
+    private void putObjectStreaming(String objectKey, Stream<T> contents, CsvRecordMapping<T> mapping) {
         try {
-            putObjectOnce(objectKey, contents);
+            putObjectOnce(objectKey, contents, mapping);
         } catch (Exception e) {
             throw new IllegalStateException("Failed writing S3 object %s/%s".formatted(bucket, objectKey), e);
         }
     }
 
-    private void putObjectOnce(String objectKey, Stream<T> contents) throws Exception {
+    private void putObjectOnce(String objectKey, Stream<T> contents, CsvRecordMapping<T> mapping) throws Exception {
         try (var in = new PipedInputStream(PIPE_BUFFER_BYTES);
              var out = new PipedOutputStream(in)) {
 
             var writerFailure = new AtomicReference<Throwable>(null);
-            var writer = startWriter(contents, out, writerFailure);
+            var writer = startWriter(contents, out, mapping, writerFailure);
 
             try {
                 client.putObject(
@@ -86,7 +86,7 @@ public final class S3FileOutput<T> implements FileOutputPort<T> {
                                 .bucket(bucket)
                                 .object(objectKey)
                                 .stream(in, -1, PART_SIZE_BYTES)
-                                .contentType("application/x-ndjson")
+                                .contentType("text/csv; charset=utf-8")
                                 .build()
                 );
             } finally {
@@ -97,27 +97,40 @@ public final class S3FileOutput<T> implements FileOutputPort<T> {
         }
     }
 
-    private Thread startWriter(Stream<T> contents, PipedOutputStream out, AtomicReference<Throwable> writerFailure) {
-        return Thread.ofVirtual().start(() -> writeJsonLines(contents, out, writerFailure));
+    private Thread startWriter(
+            Stream<T> contents,
+            PipedOutputStream out,
+            CsvRecordMapping<T> mapping,
+            AtomicReference<Throwable> writerFailure
+    ) {
+        return Thread.ofVirtual().start(() -> writeCsv(contents, out, mapping, writerFailure));
     }
 
-    private void writeJsonLines(Stream<T> contents, PipedOutputStream out, AtomicReference<Throwable> writerFailure) {
-        try (var writer = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8))) {
-            contents.forEach(v -> writeLine(writer, v));
-            writer.flush();
+    private void writeCsv(
+            Stream<T> contents,
+            PipedOutputStream out,
+            CsvRecordMapping<T> mapping,
+            AtomicReference<Throwable> writerFailure
+    ) {
+        try (var buffered = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
+             var csv = CsvWriter.builder().build(buffered)
+        ) {
+            writeHeader(csv, mapping.header());
+            contents.map(mapping.toFields()).forEach(fields -> writeRecord(csv, fields));
+            buffered.flush();
         } catch (Throwable t) {
             writerFailure.set(t);
             safeClose(out);
         }
     }
 
-    private void writeLine(BufferedWriter writer, T value) {
-        try {
-            writer.write(mapper.writeValueAsString(value));
-            writer.newLine();
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to serialize payload to json", e);
-        }
+    private void writeHeader(CsvWriter csv, List<String> header) {
+        if (header.isEmpty()) return;
+        writeRecord(csv, header);
+    }
+
+    private void writeRecord(CsvWriter csv, List<String> fields) {
+        csv.writeRecord(fields);
     }
 
     private void throwIfWriterFailed(AtomicReference<Throwable> writerFailure) {
@@ -127,7 +140,7 @@ public final class S3FileOutput<T> implements FileOutputPort<T> {
         if (t instanceof RuntimeException re) throw re;
         if (t instanceof Error err) throw err;
 
-        throw new IllegalStateException("Failed while streaming json lines", t);
+        throw new IllegalStateException("Failed while streaming csv", t);
     }
 
     private void waitForInflightToFinish() {

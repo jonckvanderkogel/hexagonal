@@ -1,9 +1,13 @@
 package com.bullit.application.file;
 
+import com.bullit.domain.port.driven.file.CsvRow;
+import com.bullit.domain.port.driven.file.CsvRowMapper;
 import com.bullit.domain.port.driven.file.FileEnvelope;
 import com.bullit.domain.port.driven.file.FileInputPort;
 import com.bullit.domain.port.driven.file.FileLocation;
 import com.bullit.domain.port.driving.file.FileHandler;
+import de.siegmar.fastcsv.reader.CsvReader;
+import de.siegmar.fastcsv.reader.NamedCsvRecord;
 import io.minio.CopyObjectArgs;
 import io.minio.CopySource;
 import io.minio.GetObjectArgs;
@@ -50,7 +54,9 @@ public final class S3FileInput<T> implements FileInputPort<T> {
 
     private volatile boolean stopping = false;
     private Thread worker;
+
     private FileHandler<T> handler;
+    private CsvRowMapper<T> mapper;
 
     public S3FileInput(
             MinioClient client,
@@ -73,12 +79,16 @@ public final class S3FileInput<T> implements FileInputPort<T> {
     }
 
     @Override
-    public synchronized void subscribe(FileHandler<T> handler) {
+    public synchronized void subscribe(FileHandler<T> handler, CsvRowMapper<T> mapper) {
         log.info("S3FileInputPort subscription received: {}", handler);
+
         if (this.handler != null) {
             throw new IllegalStateException("S3FileInputPort for bucket '%s' already has a handler".formatted(bucket));
         }
+
         this.handler = Objects.requireNonNull(handler, "handler is required");
+        this.mapper = Objects.requireNonNull(mapper, "mapper is required");
+
         startPollingLoop();
         log.info("S3FileInputPort polling started for bucket {}", bucket);
     }
@@ -155,19 +165,38 @@ public final class S3FileInput<T> implements FileInputPort<T> {
         log.info("Processing incoming S3 object: {}/{}", bucket, objectKey);
 
         try (var in = client.getObject(
-                GetObjectArgs
-                        .builder()
+                GetObjectArgs.builder()
                         .bucket(bucket)
                         .object(objectKey)
                         .build());
              var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
         ) {
+            var csv = CsvReader.builder().ofNamedCsvRecord(reader);
 
-            handler.handle(new FileEnvelope(new FileLocation(bucket, objectKey), reader.lines()));
+            try (var records = csv.stream()
+                    .map(this::wrapRow)
+                    .map(mapper::map)
+            ) {
+                handler.handle(new FileEnvelope<>(new FileLocation(bucket, objectKey), records));
+            }
         }
 
         moveToHandled(objectKey);
         log.info("Handled S3 object: {}/{}", bucket, objectKey);
+    }
+
+    private CsvRow wrapRow(NamedCsvRecord rec) {
+        return new CsvRow() {
+            @Override
+            public String field(String name) {
+                return rec.getField(name);
+            }
+
+            @Override
+            public Optional<String> findField(String name) {
+                return rec.findField(name);
+            }
+        };
     }
 
     private void moveToHandled(String objectKey) {
@@ -207,9 +236,7 @@ public final class S3FileInput<T> implements FileInputPort<T> {
     }
 
     private void idempotentCopy(String srcKey, String dstKey) throws Exception {
-        if (objectExists(dstKey)) {
-            return;
-        }
+        if (objectExists(dstKey)) return;
 
         client.copyObject(
                 CopyObjectArgs.builder()
@@ -226,9 +253,7 @@ public final class S3FileInput<T> implements FileInputPort<T> {
     }
 
     private void idempotentDelete(String srcKey) throws Exception {
-        if (!objectExists(srcKey)) {
-            return;
-        }
+        if (!objectExists(srcKey)) return;
 
         client.removeObject(
                 RemoveObjectArgs.builder()

@@ -23,6 +23,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -162,7 +163,7 @@ class RoyaltyHttpIT {
 
             assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
-            RoyaltyReportEvent event = pollForSingleRecord(consumer);
+            RoyaltyReportEvent event = pollForSingleRecord(consumer, Duration.ofSeconds(5));
 
             assertSoftly(s -> {
                 s.assertThat(event).isNotNull();

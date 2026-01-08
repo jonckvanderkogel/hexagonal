@@ -1,5 +1,6 @@
 package com.bullit.application.file;
 
+import com.bullit.domain.port.driven.file.CsvRowMapper;
 import com.bullit.domain.port.driven.file.FileEnvelope;
 import com.bullit.domain.port.driven.file.FileLocation;
 import com.bullit.domain.port.driving.file.FileHandler;
@@ -71,14 +72,13 @@ final class S3FileInputTest {
         FileHandler<String> handler = mock(FileHandler.class);
 
         in = new S3FileInput<>(client, BUCKET, "incoming/", "handled/", "error/", POLL_INTERVAL);
-        in.subscribe(handler);
+        in.subscribe(handler, passthroughMapper());
 
         assertSoftly(s -> {
-            s.assertThatThrownBy(() -> in.subscribe(handler))
+            s.assertThatThrownBy(() -> in.subscribe(handler, passthroughMapper()))
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("already");
 
-            // prove the loop actually runs
             s.check(() -> verify(client, atLeastOnce()).listObjects(any(ListObjectsArgs.class)));
         });
     }
@@ -87,17 +87,16 @@ final class S3FileInputTest {
     void valid_object_is_handled_then_copied_to_handled_and_source_deleted() throws Exception {
         MinioClient client = mock(MinioClient.class);
 
-        var objectKey = "incoming/file1.ndjson";
-        var handledKey = "handled/file1.ndjson";
+        var objectKey = "incoming/file1.csv";
+        var handledKey = "handled/file1.csv";
 
         when(client.listObjects(any(ListObjectsArgs.class)))
                 .thenReturn(List.of(resultOf(fileItem(objectKey))))
                 .thenReturn(List.of());
 
         when(client.getObject(any(GetObjectArgs.class)))
-                .thenReturn(getObjectResponse(objectKey, "a\nb\n"));
+                .thenReturn(getObjectResponse(objectKey, csv("value", "a", "b")));
 
-        // dest missing => copy runs; source exists => delete runs
         when(client.statObject(any(StatObjectArgs.class))).thenAnswer(inv -> {
             StatObjectArgs args = inv.getArgument(0);
             if (handledKey.equals(args.object())) {
@@ -110,14 +109,14 @@ final class S3FileInputTest {
         });
 
         var handled = new CountDownLatch(1);
-        var capturedLines = new AtomicReference<List<String>>();
+        var capturedRecords = new AtomicReference<List<String>>();
 
         @SuppressWarnings("unchecked")
         FileHandler<String> handler = mock(FileHandler.class);
-        captureHandledEnvelope(handler, handled, capturedLines);
+        captureHandledEnvelope(handler, handled, capturedRecords);
 
         in = new S3FileInput<>(client, BUCKET, "incoming/", "handled/", "error/", POLL_INTERVAL);
-        in.subscribe(handler);
+        in.subscribe(handler, passthroughMapper());
 
         boolean done = await(handled, 1, TimeUnit.SECONDS);
         Thread.sleep(50);
@@ -130,7 +129,7 @@ final class S3FileInputTest {
 
             s.check(() -> verify(handler, times(1)).handle(any(FileEnvelope.class)));
 
-            s.assertThat(capturedLines.get()).containsExactly("a", "b");
+            s.assertThat(capturedRecords.get()).containsExactly("a", "b");
 
             s.check(() -> verify(client, atLeastOnce()).copyObject(copyCaptor.capture()));
             s.check(() -> verify(client, atLeastOnce()).removeObject(delCaptor.capture()));
@@ -151,24 +150,23 @@ final class S3FileInputTest {
     void handler_failure_retries_then_moves_to_error_and_deletes_source() throws ServerException, InsufficientDataException, ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException, InternalException {
         MinioClient client = mock(MinioClient.class);
 
-        var objectKey = "incoming/bad.ndjson";
-        var errorKey = "error/bad.ndjson";
+        var objectKey = "incoming/bad.csv";
+        var errorKey = "error/bad.csv";
 
         when(client.listObjects(any(ListObjectsArgs.class)))
                 .thenReturn(List.of(resultOf(fileItem(objectKey))))
                 .thenReturn(List.of());
 
         when(client.getObject(any(GetObjectArgs.class)))
-                .thenReturn(getObjectResponse(objectKey, "x\n"));
+                .thenReturn(getObjectResponse(objectKey, csv("value", "x")));
 
         StatObjectResponse exists = mock(StatObjectResponse.class);
 
-        // dest missing => copy; src exists => delete
         when(client.statObject(any(StatObjectArgs.class))).thenAnswer(inv -> {
             StatObjectArgs args = inv.getArgument(0);
             return switch (args.object()) {
-                case "error/bad.ndjson" -> throw notFound("NoSuchKey");
-                case "incoming/bad.ndjson" -> exists;
+                case "error/bad.csv" -> throw notFound("NoSuchKey");
+                case "incoming/bad.csv" -> exists;
                 default -> exists;
             };
         });
@@ -178,9 +176,8 @@ final class S3FileInputTest {
         doThrow(new RuntimeException("fail")).when(handler).handle(any(FileEnvelope.class));
 
         in = new S3FileInput<>(client, BUCKET, "incoming/", "handled/", "error/", POLL_INTERVAL);
-        in.subscribe(handler);
+        in.subscribe(handler, passthroughMapper());
 
-        // Wait until we see at least 3 attempts and the move-to-error side effects.
         Awaitility.await()
                 .atMost(Duration.ofSeconds(3))
                 .untilAsserted(() -> verify(handler, atLeast(3)).handle(any(FileEnvelope.class)));
@@ -212,23 +209,22 @@ final class S3FileInputTest {
     void source_missing_short_circuits_delete_and_dest_existing_skips_copy() throws ServerException, InsufficientDataException, ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException, InternalException {
         MinioClient client = mock(MinioClient.class);
 
-        var objectKey = "incoming/file2.ndjson";
+        var objectKey = "incoming/file2.csv";
 
         when(client.listObjects(any(ListObjectsArgs.class)))
                 .thenReturn(List.of(resultOf(fileItem(objectKey))))
                 .thenReturn(List.of());
 
         when(client.getObject(any(GetObjectArgs.class)))
-                .thenReturn(getObjectResponse(objectKey, "ok\n"));
+                .thenReturn(getObjectResponse(objectKey, csv("value", "ok")));
 
         StatObjectResponse exists = mock(StatObjectResponse.class);
 
-        // dest exists => copy skipped; src missing => delete skipped
         when(client.statObject(any(StatObjectArgs.class))).thenAnswer(inv -> {
             StatObjectArgs args = inv.getArgument(0);
             return switch (args.object()) {
-                case "handled/file2.ndjson" -> exists;
-                case "incoming/file2.ndjson" -> throw notFound("NoSuchKey");
+                case "handled/file2.csv" -> exists;
+                case "incoming/file2.csv" -> throw notFound("NoSuchKey");
                 default -> exists;
             };
         });
@@ -237,7 +233,7 @@ final class S3FileInputTest {
         FileHandler<String> handler = mock(FileHandler.class);
 
         in = new S3FileInput<>(client, BUCKET, "incoming/", "handled/", "error/", POLL_INTERVAL);
-        in.subscribe(handler);
+        in.subscribe(handler, passthroughMapper());
 
         Awaitility.await()
                 .atMost(Duration.ofSeconds(2))
@@ -255,7 +251,7 @@ final class S3FileInputTest {
     void unwrap_failure_is_ignored_and_other_items_still_processed() throws ServerException, InsufficientDataException, ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException, InvalidResponseException, XmlParserException, InternalException {
         MinioClient client = mock(MinioClient.class);
 
-        var goodKey = "incoming/good.ndjson";
+        var goodKey = "incoming/good.csv";
 
         var badResult = throwingResult(new RuntimeException("boom"));
         var goodResult = resultOf(fileItem(goodKey));
@@ -265,7 +261,7 @@ final class S3FileInputTest {
                 .thenReturn(List.of());
 
         when(client.getObject(any(GetObjectArgs.class)))
-                .thenReturn(getObjectResponse(goodKey, "1\n2\n"));
+                .thenReturn(getObjectResponse(goodKey, csv("value", "1", "2")));
 
         when(client.statObject(any(StatObjectArgs.class)))
                 .thenReturn(mock(StatObjectResponse.class));
@@ -274,7 +270,7 @@ final class S3FileInputTest {
         FileHandler<String> handler = mock(FileHandler.class);
 
         in = new S3FileInput<>(client, BUCKET, "incoming/", "handled/", "error/", POLL_INTERVAL);
-        in.subscribe(handler);
+        in.subscribe(handler, passthroughMapper());
 
         Awaitility.await()
                 .atMost(Duration.ofSeconds(2))
@@ -287,7 +283,7 @@ final class S3FileInputTest {
     void wrong_prefix_does_not_invoke_handler_or_getObject() throws Exception {
         MinioClient client = mock(MinioClient.class);
 
-        var wrongKey = "not-incoming/file.ndjson";
+        var wrongKey = "not-incoming/file.csv";
 
         when(client.listObjects(any(ListObjectsArgs.class)))
                 .thenReturn(List.of(resultOf(fileItem(wrongKey))))
@@ -297,7 +293,7 @@ final class S3FileInputTest {
         FileHandler<String> handler = mock(FileHandler.class);
 
         in = new S3FileInput<>(client, BUCKET, "incoming/", "handled/", "error/", POLL_INTERVAL);
-        in.subscribe(handler);
+        in.subscribe(handler, passthroughMapper());
 
         Thread.sleep(500);
 
@@ -305,6 +301,17 @@ final class S3FileInputTest {
             s.check(() -> verify(client, never()).getObject(any(GetObjectArgs.class)));
             s.check(() -> verify(handler, never()).handle(any(FileEnvelope.class)));
         });
+    }
+
+    private static CsvRowMapper<String> passthroughMapper() {
+        return row -> row.field("value");
+    }
+
+    private static String csv(String header, String... values) {
+        var b = new StringBuilder();
+        b.append(header).append("\n");
+        for (var v : values) b.append(v).append("\n");
+        return b.toString();
     }
 
     private static boolean await(CountDownLatch latch, long time, TimeUnit unit) {
@@ -319,22 +326,24 @@ final class S3FileInputTest {
     private static void captureHandledEnvelope(
             FileHandler<?> handler,
             CountDownLatch handled,
-            AtomicReference<List<String>> capturedLines
+            AtomicReference<List<String>> capturedRecords
     ) {
         doAnswer(invocation -> {
+            @SuppressWarnings("rawtypes")
             FileEnvelope env = invocation.getArgument(0);
 
-            List<String> lines = env.lines().toList();
-            capturedLines.set(lines);
+            @SuppressWarnings("unchecked")
+            List<String> records = ((java.util.stream.Stream<String>) env.records()).toList();
+            capturedRecords.set(records);
 
             assertSoftly(s -> {
-                FileLocation loc = env.location();
+                FileLocation loc = (FileLocation) env.location();
                 s.assertThat(loc.bucket()).isEqualTo(BUCKET);
                 s.assertThat(loc.objectKey()).isNotBlank();
             });
 
             handled.countDown();
-            return null; // void method => Answer<Void>
+            return null;
         }).when(handler).handle(any(FileEnvelope.class));
     }
 

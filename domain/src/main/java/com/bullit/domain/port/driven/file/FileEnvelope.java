@@ -2,7 +2,8 @@ package com.bullit.domain.port.driven.file;
 
 import java.util.stream.Stream;
 
-public record FileEnvelope(
+public record FileEnvelope<T>(
         FileLocation location,
-        Stream<String> lines
-) {}
+        Stream<T> records
+) {
+}
