@@ -2,6 +2,7 @@ package com.bullit.application.streaming;
 
 import com.bullit.domain.port.driven.stream.InputStreamPort;
 import com.bullit.domain.port.driven.stream.OutputStreamPort;
+import com.bullit.domain.port.driven.stream.StreamKey;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -16,6 +17,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.ResolvableType;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Configuration
@@ -76,6 +79,8 @@ public class StreamBootstrap {
                     beanDef.setTargetType(resolvableType);
                     beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.topic());
                     beanDef.getConstructorArgumentValues().addGenericArgumentValue(producer);
+                    var keyFun = resolveKeyFunction(cfg.payloadType(), cfg.key());
+                    beanDef.getConstructorArgumentValues().addGenericArgumentValue(keyFun);
 
                     var beanName = "outputStream:" + cfg.payloadType().getName();
                     registry.registerBeanDefinition(beanName, beanDef);
@@ -111,5 +116,48 @@ public class StreamBootstrap {
                     return (KafkaInputStream<?>) context.getBean(beanName);
                 })
                 .collect(Collectors.toUnmodifiableList());
+    }
+
+    private static <T> Function<T, String> resolveKeyFunction(
+            Class<?> payloadType,
+            Class<? extends StreamKey<?>> keyClass
+    ) {
+        return Optional.ofNullable(keyClass)
+                .map(StreamBootstrap::instantiateKey)
+                .map(key -> verifyKeyMatchesPayload(key, payloadType))
+                .map(StreamBootstrap::<T>unsafeCastToPayloadFunction)
+                .orElseGet(StreamBootstrap::nullKeyFunction);
+    }
+
+    private static StreamKey<?> instantiateKey(Class<? extends StreamKey<?>> keyClass) {
+        try {
+            return keyClass.getDeclaredConstructor().newInstance();
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(
+                    "Failed to instantiate StreamKey '%s'. Ensure it has a public no-args constructor."
+                            .formatted(keyClass.getName()),
+                    e
+            );
+        }
+    }
+
+    private static StreamKey<?> verifyKeyMatchesPayload(StreamKey<?> key, Class<?> payloadType) {
+        var keyPayloadType = key.payloadType();
+        if (!keyPayloadType.equals(payloadType)) {
+            throw new IllegalStateException(
+                    "StreamKey payload type mismatch. Output payloadType=%s but key=%s payloadType=%s"
+                            .formatted(payloadType.getName(), key.getClass().getName(), keyPayloadType.getName())
+            );
+        }
+        return key;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> Function<T, String> unsafeCastToPayloadFunction(StreamKey<?> key) {
+        return (Function<T, String>) key;
+    }
+
+    private static <T> Function<T, String> nullKeyFunction() {
+        return _ -> null;
     }
 }

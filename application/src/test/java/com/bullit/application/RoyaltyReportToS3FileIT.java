@@ -118,7 +118,8 @@ class RoyaltyReportToS3FileIT {
                     List.of(
                             new StreamConfigProperties.OutputConfig(
                                     com.bullit.domain.event.SaleEvent.class,
-                                    OUTPUT_TOPIC
+                                    OUTPUT_TOPIC,
+                                    null
                             )), // this one is needed for the royaltyServicePort in BeansConfig
                     List.of(
                             new StreamConfigProperties.HandlerConfig(RoyaltyReportToS3FileHandler.class)

@@ -51,6 +51,7 @@ streams:
   outputs:
     - payload-type: com.bullit.domain.event.SaleEvent
       topic: raw-sales
+      key: com.bullit.core.usecase.SaleEventKey
     - payload-type: com.bullit.domain.event.RoyaltyReportEvent
       topic: author-royalties
   handlers:

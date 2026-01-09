@@ -5,10 +5,13 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
+import static com.bullit.application.TestUtils.nullKeyFunction;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
@@ -46,7 +49,7 @@ final class KafkaOutputStreamTest {
         when(producer.send(any()))
                 .thenReturn(CompletableFuture.completedFuture(mock(RecordMetadata.class)));
 
-        stream = new KafkaOutputStream<>(TOPIC, producer);
+        stream = new KafkaOutputStream<>(TOPIC, producer, nullKeyFunction());
 
         stream.emit(payload);
 
@@ -79,7 +82,7 @@ final class KafkaOutputStreamTest {
                     return CompletableFuture.completedFuture(mock(RecordMetadata.class));
                 });
 
-        stream = new KafkaOutputStream<>(TOPIC, producer);
+        stream = new KafkaOutputStream<>(TOPIC, producer, nullKeyFunction());
 
         // should NOT throw (eventually succeeds within retry budget)
         stream.emit(payload);
@@ -99,7 +102,7 @@ final class KafkaOutputStreamTest {
         @SuppressWarnings("unchecked")
         KafkaProducer<String, TestPayload> producer = mock(KafkaProducer.class);
 
-        stream = new KafkaOutputStream<>(TOPIC, producer);
+        stream = new KafkaOutputStream<>(TOPIC, producer, nullKeyFunction());
         stream.close();
 
         assertSoftly(s -> {
@@ -119,7 +122,7 @@ final class KafkaOutputStreamTest {
                 .thenReturn(CompletableFuture.completedFuture(mock(RecordMetadata.class)));
 
         var payload = new TestPayload("final");
-        var stream = new KafkaOutputStream<>(TOPIC, producer);
+        var stream = new KafkaOutputStream<>(TOPIC, producer, nullKeyFunction());
 
         // Act: enqueue but do NOT start worker
         stream.emit(payload);
@@ -143,10 +146,39 @@ final class KafkaOutputStreamTest {
 
         doThrow(new RuntimeException("boom")).when(producer).close();
 
-        stream = new KafkaOutputStream<>(TOPIC, producer);
+        stream = new KafkaOutputStream<>(TOPIC, producer, nullKeyFunction());
 
         assertSoftly(s -> {
             s.assertThatCode(stream::close).doesNotThrowAnyException();
+        });
+    }
+
+    @Test
+    void emit_applies_key_function_and_sends_record_with_key() {
+        @SuppressWarnings("unchecked")
+        KafkaProducer<String, TestPayload> producer = mock(KafkaProducer.class);
+
+        var payload = new TestPayload("ok");
+
+        when(producer.send(any(ProducerRecord.class)))
+                .thenReturn(CompletableFuture.completedFuture(mock(RecordMetadata.class)));
+
+        var keyFun = (Function<TestPayload, String>) p -> "k:" + p.value();
+
+        stream = new KafkaOutputStream<>(TOPIC, producer, keyFun);
+
+        stream.emit(payload);
+
+        var captor = ArgumentCaptor.forClass(ProducerRecord.class);
+        verify(producer).send(captor.capture());
+
+        @SuppressWarnings("unchecked")
+        var rec = (ProducerRecord<String, TestPayload>) captor.getValue();
+
+        assertSoftly(s -> {
+            s.assertThat(rec.topic()).isEqualTo(TOPIC);
+            s.assertThat(rec.key()).isEqualTo("k:ok");
+            s.assertThat(rec.value()).isEqualTo(payload);
         });
     }
 }

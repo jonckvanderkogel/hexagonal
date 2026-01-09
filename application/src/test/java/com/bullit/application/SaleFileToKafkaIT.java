@@ -3,6 +3,7 @@ package com.bullit.application;
 import com.bullit.application.file.FileConfigProperties;
 import com.bullit.application.streaming.KafkaClientProperties;
 import com.bullit.application.streaming.StreamConfigProperties;
+import com.bullit.core.usecase.SaleEventKey;
 import com.bullit.core.usecase.SaleFileToKafkaHandler;
 import com.bullit.domain.event.SaleEvent;
 import com.bullit.domain.model.royalty.Sale;
@@ -25,7 +26,7 @@ import static com.bullit.application.TestUtils.awaitAssignment;
 import static com.bullit.application.TestUtils.createTestConsumer;
 import static com.bullit.application.TestUtils.objectExists;
 import static com.bullit.application.TestUtils.pollForAnyRecord;
-import static com.bullit.application.TestUtils.pollForSingleRecord;
+import static com.bullit.application.TestUtils.pollForSingleConsumerRecord;
 import static com.bullit.application.TestUtils.putObject;
 import static com.bullit.application.TestUtils.seekToEnd;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
@@ -76,9 +77,14 @@ class SaleFileToKafkaIT {
 
             putObject(minioClient, BUCKET, incomingKey, csv);
 
-            var event = pollForSingleRecord(consumer, Duration.ofSeconds(5));
+            var record = pollForSingleConsumerRecord(consumer, Duration.ofSeconds(5));
+            var event = record.value();
 
             assertSoftly(s -> {
+                s.assertThat(record.key())
+                        .as("Kafka record key (StreamKey should be applied)")
+                        .isEqualTo(saleId.toString());
+
                 s.assertThat(event).isNotNull();
                 s.assertThat(event.getId()).isEqualTo(saleId.toString());
                 s.assertThat(event.getBookId()).isEqualTo(bookId.toString());
@@ -149,7 +155,8 @@ class SaleFileToKafkaIT {
                     List.of(
                             new StreamConfigProperties.OutputConfig(
                                     SaleEvent.class,
-                                    TOPIC
+                                    TOPIC,
+                                    SaleEventKey.class
                             )
                     ),
                     List.of()

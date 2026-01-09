@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
+import java.util.function.Function;
 
 import static com.bullit.application.FunctionUtils.retryWithBackoff;
 
@@ -19,13 +20,19 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
     private final String topic;
     private final KafkaProducer<String, T> producer;
     private final String sendRetrySubject;
+    private final Function<T, String> keyFun;
 
     private volatile boolean stopping = false;
 
-    public KafkaOutputStream(String topic, KafkaProducer<String, T> kafkaProducer) {
+    public KafkaOutputStream(
+            String topic,
+            KafkaProducer<String, T> kafkaProducer,
+            Function<T, String> keyFun
+    ) {
         this.topic = requireText(topic, "topic");
         this.producer = Objects.requireNonNull(kafkaProducer, "kafkaProducer");
         this.sendRetrySubject = "sending output stream message for topic %s".formatted(topic);
+        this.keyFun = Objects.requireNonNull(keyFun, "keyFun");
     }
 
     @Override
@@ -43,7 +50,7 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
     }
 
     private void sendAndAwaitAck(T element) throws Exception {
-        producer.send(new ProducerRecord<>(topic, element)).get();
+        producer.send(new ProducerRecord<>(topic, keyFun.apply(element), element)).get();
     }
 
     private void logPoisonMessage(T element, Exception e) {

@@ -1,5 +1,6 @@
 package com.bullit.application.streaming;
 
+import com.bullit.domain.port.driven.stream.StreamKey;
 import com.bullit.domain.port.driving.stream.StreamHandler;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -45,9 +46,10 @@ public record StreamConfigProperties(
             Class<?> payloadType,
 
             @NotBlank(message = "streams.outputs[].topic is required")
-            String topic
-    ) {
-    }
+            String topic,
+
+            Class<? extends StreamKey<?>> key
+    ) {}
 
     public record HandlerConfig(
             @NotNull(message = "streams.handlers[].handler-class is required")

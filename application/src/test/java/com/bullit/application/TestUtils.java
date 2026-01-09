@@ -8,6 +8,7 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.StatObjectArgs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 
@@ -15,6 +16,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Properties;
+import java.util.function.Function;
 
 public class TestUtils {
 
@@ -38,7 +40,7 @@ public class TestUtils {
         return new KafkaConsumer<>(props);
     }
 
-    public static <T> T pollForSingleRecord(
+    public static <T> ConsumerRecord<String, T> pollForSingleConsumerRecord(
             KafkaConsumer<String, T> consumer,
             Duration timeout
     ) {
@@ -47,11 +49,18 @@ public class TestUtils {
         while (System.currentTimeMillis() < deadline) {
             var records = consumer.poll(Duration.ofMillis(500));
             if (!records.isEmpty()) {
-                return records.iterator().next().value();
+                return records.iterator().next();
             }
         }
 
         throw new AssertionError("No Kafka message received within timeout");
+    }
+
+    public static <T> T pollForSingleRecord(
+            KafkaConsumer<String, T> consumer,
+            Duration timeout
+    ) {
+        return pollForSingleConsumerRecord(consumer, timeout).value();
     }
 
     public static <T> boolean pollForAnyRecord(
@@ -169,5 +178,9 @@ public class TestUtils {
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    public static <T> Function<T, String> nullKeyFunction() {
+        return _ -> null;
     }
 }
