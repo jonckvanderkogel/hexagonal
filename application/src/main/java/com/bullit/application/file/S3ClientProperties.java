@@ -8,13 +8,15 @@ import jakarta.validation.constraints.Pattern;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
+import static com.bullit.application.FunctionUtils.HOST_PATTERN;
+
 @Validated
 @ConfigurationProperties(prefix = "s3")
 public record S3ClientProperties(
         @NotBlank(message = "s3.endpoint is required")
         @Pattern(
-                regexp = "^[a-zA-Z0-9.-]+$",
-                message = "s3.endpoint must be a hostname (no scheme, no port)"
+                regexp = HOST_PATTERN,
+                message = "s3.endpoint must be a valid hostname or IP address (no scheme, no port, no path)"
         )
         String endpoint,
 
@@ -35,7 +37,7 @@ public record S3ClientProperties(
     }
 
     @AssertTrue(message = "s3.access-key and s3.secret-key must either both be set or both be empty")
-    public boolean credentialsAreConsistent() {
+    public boolean isCredentialsAreConsistent() {
         return isBlank(accessKey) == isBlank(secretKey);
     }
 

@@ -40,22 +40,24 @@ public record FileConfigProperties(
             String incomingPrefix,
             String handledPrefix,
             String errorPrefix,
+
+            @NotNull(message = "files.inputs[].poll-interval is required")
             Duration pollInterval
     ) {
         public InputConfig {
+            bucket = bucket == null ? null : bucket.trim();
             incomingPrefix = canonicalPrefix(incomingPrefix);
             handledPrefix = canonicalPrefix(handledPrefix);
             errorPrefix = canonicalPrefix(errorPrefix);
-            pollInterval = pollInterval == null ? Duration.ofSeconds(1) : pollInterval;
         }
 
         @AssertTrue(message = """
-            files.inputs[] prefixes are invalid:
-            - if incoming-prefix is set, handled-prefix and error-prefix must be set
-            - handled-prefix and error-prefix must differ from incoming-prefix and from each other
-            - if incoming-prefix is empty, handled-prefix and error-prefix must be empty
-            """)
-        public boolean prefixesAreConsistent() {
+                files.inputs[] prefixes are invalid:
+                - if incoming-prefix is set, handled-prefix and error-prefix must be set
+                - handled-prefix and error-prefix must differ from incoming-prefix and from each other
+                - if incoming-prefix is empty, handled-prefix and error-prefix must be empty
+                """)
+        public boolean isPrefixesAreConsistent() {
             if (incomingPrefix.isEmpty()) {
                 return handledPrefix.isEmpty() && errorPrefix.isEmpty();
             }
@@ -67,22 +69,22 @@ public record FileConfigProperties(
         }
 
         @AssertTrue(message = "files.inputs[] prefixes must be empty or end with '/'")
-        public boolean prefixesMustEndWithSlashWhenSet() {
+        public boolean isPrefixesMustEndWithSlashWhenSet() {
             return isEmptyOrEndsWithSlash(incomingPrefix)
                     && isEmptyOrEndsWithSlash(handledPrefix)
                     && isEmptyOrEndsWithSlash(errorPrefix);
         }
 
         @AssertTrue(message = "files.inputs[] prefixes must not start with '/'")
-        public boolean prefixesMustNotStartWithSlash() {
+        public boolean isPrefixesMustNotStartWithSlash() {
             return startsWithSlash(incomingPrefix)
                     && startsWithSlash(handledPrefix)
                     && startsWithSlash(errorPrefix);
         }
 
         @AssertTrue(message = "files.inputs[].poll-interval must be positive")
-        public boolean pollIntervalMustBePositive() {
-            return !pollInterval.isZero() && !pollInterval.isNegative();
+        public boolean isPollIntervalMustBePositive() {
+            return pollInterval != null && !pollInterval.isZero() && !pollInterval.isNegative();
         }
 
         private static String canonicalPrefix(String s) {
@@ -105,6 +107,9 @@ public record FileConfigProperties(
             @NotBlank(message = "files.outputs[].bucket is required")
             String bucket
     ) {
+        public OutputConfig {
+            bucket = bucket == null ? null : bucket.trim();
+        }
     }
 
     public record HandlerConfig(

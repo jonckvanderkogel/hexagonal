@@ -45,13 +45,6 @@ public class RoyaltyScheme {
         );
     }
 
-    private static List<RoyaltyTier> append(List<RoyaltyTier> base, RoyaltyTier extra) {
-        var list = new ArrayList<RoyaltyTier>(base.size() + 1);
-        list.addAll(base);
-        list.add(extra);
-        return list;
-    }
-
     private static List<RoyaltyTier> updateLastElement(List<RoyaltyTier> base) {
         var list = new ArrayList<>(base);
         var last = base.getLast();

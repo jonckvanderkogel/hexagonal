@@ -2,11 +2,13 @@ package com.bullit.application;
 
 import com.bullit.application.streaming.KafkaClientProperties;
 import com.bullit.domain.event.RoyaltyReportEvent;
-import com.bullit.domain.event.SaleEvent;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.StatObjectArgs;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -15,10 +17,15 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.function.Function;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class TestUtils {
+    private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
 
     public static KafkaProducer<String, RoyaltyReportEvent> createTestProducer(
             KafkaClientProperties kafkaClientProperties
@@ -182,5 +189,27 @@ public class TestUtils {
 
     public static <T> Function<T, String> nullKeyFunction() {
         return _ -> null;
+    }
+
+    public static <T> Set<ConstraintViolation<T>> validate(T value) {
+        return VALIDATOR.validate(value);
+    }
+
+    public static List<String> messages(Set<? extends ConstraintViolation<?>> violations) {
+        return violations.stream()
+                .map(ConstraintViolation::getMessage)
+                .toList();
+    }
+
+    public static void anyMessageContains(
+            Set<? extends ConstraintViolation<?>> violations,
+            String expectedSubstring
+    ) {
+        assertThat(messages(violations))
+                .anySatisfy(m -> assertThat(m).contains(expectedSubstring));
+    }
+
+    public static void assertNoViolations(Set<? extends ConstraintViolation<?>> violations) {
+        assertThat(violations).isEmpty();
     }
 }

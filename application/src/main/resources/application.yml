@@ -62,9 +62,9 @@ files:
   inputs:
     - payload-type: com.bullit.domain.model.royalty.Sale
       bucket: raw-sales
-      incoming-prefix: incoming
-      handled-prefix: handled
-      error-prefix: error
+      incoming-prefix: incoming/
+      handled-prefix: handled/
+      error-prefix: error/
       poll-interval: 1s
 
   outputs:

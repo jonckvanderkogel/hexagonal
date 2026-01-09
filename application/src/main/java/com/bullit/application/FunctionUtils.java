@@ -13,6 +13,8 @@ public final class FunctionUtils {
     private FunctionUtils() {
     }
 
+    public static final String HOST_PATTERN = "^(localhost|(?=.{1,253}$)[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*|(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(?:\\.(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}|(\\[(?=.*:)[0-9A-Fa-f:]{2,}]))$";
+
     @FunctionalInterface
     public interface CheckedRunnable {
         void run() throws Exception;
