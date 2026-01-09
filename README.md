@@ -13,6 +13,29 @@ docker compose up -d
 mvn clean -f application spring-boot:run
 ```
 
+### Running tests
+The application has a wide array of both unit tests and integration tests. The integration tests are based on 
+docker-compose, using the spring-boot-docker-compose library to spin up the environment before the integration test
+runs.
+
+#### Running tests from the command line
+To run from the command line is easy, simply run this command from your shell:
+```shell
+mvn clean verify
+```
+
+#### Running tests from IntelliJ
+Since this is a multi-module project, you have to set up IntelliJ specifically so that it can run all your tests in one
+go. You can run individual tests or tests from one module like you're used to, but running them all in one go requires
+you to set up a run configuration. The most important thing is that since this project depends on docker compose to
+scaffold the environment, you need to pass in the location of your docker compose file as a VM argument:
+```
+-Dspring.docker.compose.file=$PROJECT_DIR$/docker-compose.yml
+```
+
+For the rest it's very simple, the only thing you need to add is your working directory, which is just the complete path
+to the root of where you checked out the project.
+
 ### Calling endpoints:
 
 #### Create author:

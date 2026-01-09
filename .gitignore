@@ -34,4 +34,4 @@ build/
 .vscode/
 
 ### Application ###
-/application/s3-credentials.env
+s3-credentials.env
