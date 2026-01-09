@@ -67,7 +67,9 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
     }
 
     private void consumeMessages() {
-        pollRecords().ifPresent(records -> records.forEach(this::processRecord));
+        pollRecords()
+                .ifPresent(records -> records
+                        .forEach(this::processRecord));
     }
 
     private Optional<ConsumerRecords<String, T>> pollRecords() {

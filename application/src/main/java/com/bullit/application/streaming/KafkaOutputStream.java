@@ -1,151 +1,84 @@
 package com.bullit.application.streaming;
 
 import com.bullit.domain.port.driven.stream.OutputStreamPort;
-import jakarta.annotation.PostConstruct;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Objects;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.stream.Stream;
 
 import static com.bullit.application.FunctionUtils.retryWithBackoff;
 
-public final class KafkaOutputStream<T> implements OutputStreamPort<T> {
+public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaOutputStream.class);
 
-    private static final int MAX_BUFFER_SIZE = 10_000;
     private static final int MAX_RETRY_ATTEMPTS = 5;
-    private static final int MAX_RETRY_ATTEMPTS_ON_SHUTDOWN = 5;
 
     private final String topic;
     private final KafkaProducer<String, T> producer;
-    private final BlockingQueue<T> queue = new LinkedBlockingQueue<>(MAX_BUFFER_SIZE);
     private final String sendRetrySubject;
 
-    private Thread worker;
     private volatile boolean stopping = false;
 
-    public KafkaOutputStream(String topic,
-                             KafkaProducer<String, T> kafkaProducer) {
-        this.topic = topic;
-        this.producer = kafkaProducer;
+    public KafkaOutputStream(String topic, KafkaProducer<String, T> kafkaProducer) {
+        this.topic = requireText(topic, "topic");
+        this.producer = Objects.requireNonNull(kafkaProducer, "kafkaProducer");
         this.sendRetrySubject = "sending output stream message for topic %s".formatted(topic);
-    }
-
-    @PostConstruct
-    void startSendingLoop() {
-        log.info("KafkaOutputStream for topic {} is starting", topic);
-        worker = Thread.ofVirtual().start(() -> {
-                    log.info("Virtual thread started");
-                    blockingQueueStream().forEach(this::sendAsync);
-                }
-        );
-    }
-
-    private Stream<T> blockingQueueStream() {
-        return Stream.generate(() -> {
-            if (stopping) return null;
-            try {
-                return queue.take();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return null;
-            }
-        }).takeWhile(Objects::nonNull);
-    }
-
-    private void sendAsync(T element) {
-        log.info("Sending async event for topic {}", topic);
-        producer.send(
-                new ProducerRecord<>(topic, element),
-                (_, exception) -> {
-                    log.info("Callback triggered for topic {} and element {}", topic, element);
-                    if (exception != null) {
-                        log.error("Received error: {}", element, exception);
-                        Thread.ofVirtual().start(() ->
-                                retryWithBackoff(
-                                        sendRetrySubject,
-                                        MAX_RETRY_ATTEMPTS,
-                                        () -> retrySendSynchronously(element),
-                                        ex -> logPoisonMessage(element, ex),
-                                        log
-                                )
-                        );
-                    }
-                }
-        );
-    }
-
-    private void retrySendSynchronously(T element) throws Exception {
-        log.warn("Retrying: {}", element);
-        sendSynchronously(element);
-    }
-
-    private void sendSynchronously(T element) throws Exception {
-        producer.send(new ProducerRecord<>(topic, element)).get();
-    }
-
-    private void logPoisonMessage(T element, Exception e) {
-        log.error("Poison outbound message after retries: {}", element, e);
     }
 
     @Override
     public void emit(T element) {
+        requireRunning();
+        Objects.requireNonNull(element, "element");
+
+        retryWithBackoff(
+                sendRetrySubject,
+                MAX_RETRY_ATTEMPTS,
+                () -> sendAndAwaitAck(element),
+                ex -> logPoisonMessage(element, ex),
+                log
+        );
+    }
+
+    private void sendAndAwaitAck(T element) throws Exception {
+        producer.send(new ProducerRecord<>(topic, element)).get();
+    }
+
+    private void logPoisonMessage(T element, Exception e) {
+        log.error("Poison outbound message after retries for topic {}: {}", topic, element, e);
+    }
+
+    private void requireRunning() {
         if (stopping) {
             throw new IllegalStateException("Producer is shutting down");
         }
-        try {
-            queue.put(element);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted enqueuing message", e);
-        }
     }
 
+    private static String requireText(String value, String name) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException("Missing required " + name);
+        }
+        return value;
+    }
+
+    @Override
     public void close() {
         stopping = true;
-        worker.interrupt();
-        waitForWorkerToFinish();
-        drainRemainingQueue();
-        producer.flush();
-        safeCloseProducer();
-        log.info("Kafka producer for topic {} shut down cleanly", topic);
-    }
 
-    private void drainRemainingQueue() {
-        Stream.generate(queue::poll)
-                .takeWhile(Objects::nonNull)
-                .forEach(element ->
-                        retryWithBackoff(
-                                "draining remaining queue for output stream for topic %s".formatted(topic),
-                                MAX_RETRY_ATTEMPTS_ON_SHUTDOWN,
-                                () -> sendSynchronously(element),
-                                ex -> logPoisonMessage(element, ex),
-                                log
-                        )
-                );
-    }
-
-    private void waitForWorkerToFinish() {
-        if (worker != null && worker.isAlive()) {
-            try {
-                worker.join();
-            } catch (InterruptedException ignored) {
-                Thread.currentThread().interrupt();
-            }
+        try {
+            producer.flush();
+        } catch (Exception e) {
+            log.warn("Error flushing Kafka producer for topic {}", topic, e);
         }
-    }
 
-    private void safeCloseProducer() {
         try {
             producer.close();
         } catch (Exception e) {
             log.warn("Error closing Kafka producer for topic {}", topic, e);
         }
+
+        log.info("Kafka producer for topic {} shut down cleanly", topic);
     }
 }

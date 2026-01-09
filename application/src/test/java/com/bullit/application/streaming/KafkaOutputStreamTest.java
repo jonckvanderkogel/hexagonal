@@ -1,6 +1,5 @@
 package com.bullit.application.streaming;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -8,10 +7,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
@@ -46,73 +43,53 @@ final class KafkaOutputStreamTest {
 
         var payload = new TestPayload("ok");
 
-        when(producer.send(any(), any()))
-                .thenReturn(CompletableFuture.completedFuture(null));
+        when(producer.send(any()))
+                .thenReturn(CompletableFuture.completedFuture(mock(RecordMetadata.class)));
 
         stream = new KafkaOutputStream<>(TOPIC, producer);
-        stream.startSendingLoop();
 
         stream.emit(payload);
 
         assertSoftly(s -> {
             s.check(() ->
                     verify(producer).send(
-                            eq(new ProducerRecord<>(TOPIC, payload)),
-                            any()
+                            eq(new ProducerRecord<>(TOPIC, payload))
                     )
             );
         });
     }
 
     @Test
-    void async_send_failure_triggers_retry_and_eventual_success() throws JsonProcessingException {
+    void send_failure_triggers_retry_and_eventual_success() {
         @SuppressWarnings("unchecked")
         KafkaProducer<String, TestPayload> producer = mock(KafkaProducer.class);
 
         var payload = new TestPayload("retry");
 
-        var retrySucceeded = new CountDownLatch(1);
+        // Fail twice, then succeed on the 3rd attempt
+        var failuresBeforeSuccess = 2;
+        var attempts = new AtomicInteger(0);
 
-        // async send fails
-        when(producer.send(any(ProducerRecord.class), any()))
-                .thenAnswer(invocation -> {
-                    var cb = invocation.getArgument(
-                            1,
-                            org.apache.kafka.clients.producer.Callback.class
-                    );
-                    cb.onCompletion(null, new RuntimeException("fail"));
-                    return CompletableFuture.completedFuture(null);
-                });
-
-        // retry send succeeds
         when(producer.send(any(ProducerRecord.class)))
-                .thenAnswer(_ -> {
-                    retrySucceeded.countDown();
+                .thenAnswer(invocation -> {
+                    var attempt = attempts.incrementAndGet();
+                    if (attempt <= failuresBeforeSuccess) {
+                        return CompletableFuture.failedFuture(new RuntimeException("fail-" + attempt));
+                    }
                     return CompletableFuture.completedFuture(mock(RecordMetadata.class));
                 });
 
         stream = new KafkaOutputStream<>(TOPIC, producer);
-        stream.startSendingLoop();
 
+        // should NOT throw (eventually succeeds within retry budget)
         stream.emit(payload);
 
         assertSoftly(s -> {
-            s.check(() ->
-                    assertThat(
-                            retrySucceeded.await(WAIT_MS, TimeUnit.MILLISECONDS)
-                    ).isTrue()
-            );
+            s.assertThat(attempts.get()).isEqualTo(3);
 
-            // one async send
             s.check(() ->
-                    verify(producer, times(1))
-                            .send(any(ProducerRecord.class), any())
-            );
-
-            // one retry send
-            s.check(() ->
-                    verify(producer, times(1))
-                            .send(any(ProducerRecord.class))
+                    verify(producer, times(3))
+                            .send(eq(new ProducerRecord<>(TOPIC, payload)))
             );
         });
     }
@@ -123,7 +100,6 @@ final class KafkaOutputStreamTest {
         KafkaProducer<String, TestPayload> producer = mock(KafkaProducer.class);
 
         stream = new KafkaOutputStream<>(TOPIC, producer);
-        stream.startSendingLoop();
         stream.close();
 
         assertSoftly(s -> {
@@ -134,7 +110,7 @@ final class KafkaOutputStreamTest {
     }
 
     @Test
-    void close_drains_queue_flushes_and_closes_producer() throws Exception {
+    void close_flushes_and_closes_producer() throws Exception {
         @SuppressWarnings("unchecked")
         KafkaProducer<String, TestPayload> producer = mock(KafkaProducer.class);
 
@@ -144,7 +120,6 @@ final class KafkaOutputStreamTest {
 
         var payload = new TestPayload("final");
         var stream = new KafkaOutputStream<>(TOPIC, producer);
-        stream.startSendingLoop();
 
         // Act: enqueue but do NOT start worker
         stream.emit(payload);
@@ -169,7 +144,6 @@ final class KafkaOutputStreamTest {
         doThrow(new RuntimeException("boom")).when(producer).close();
 
         stream = new KafkaOutputStream<>(TOPIC, producer);
-        stream.startSendingLoop();
 
         assertSoftly(s -> {
             s.assertThatCode(stream::close).doesNotThrowAnyException();
