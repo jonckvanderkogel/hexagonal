@@ -77,16 +77,45 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
     }
 
     private void startPollingLoop() {
-        poller = Thread.ofVirtual().start(() ->
+        poller = Thread.ofVirtual().start(() -> {
+            try {
                 runUntilInterrupted(
                         this::pollIteration,
                         () -> stopping
-                )
-        );
+                );
+            } finally {
+                // IMPORTANT: KafkaConsumer is NOT thread-safe. All consumer interactions
+                // (commit/resume/close) must happen on this poller thread.
+                shutdownOnPollerThread();
+            }
+        });
+    }
+
+    private void shutdownOnPollerThread() {
+        // At this point:
+        // - stopping is true OR we were interrupted/woken up
+        // - no further poll iterations should run
+        //
+        // We now:
+        // 1) wait for workers to finish (they may still advance offsets / enqueue completions)
+        // 2) do a last best-effort commit of all progress
+        // 3) close the consumer
+        try {
+            snapshotWorkers().forEach(this::joinPreservingInterrupt);
+
+            // No more nextOffsetByPartition updates after workers are joined.
+            commitAndResumeAllProgressPipeline();
+        } catch (Exception e) {
+            log.warn("Error during poller-thread shutdown for topic {}", topic, e);
+        } finally {
+            safeCloseConsumer();
+            log.info("Kafka consumer for topic {} shut down cleanly", topic);
+        }
     }
 
     private void pollIteration() {
         drainCompletionsPipeline();
+        if (stopping) return;
         pollRecords().ifPresent(this::dispatchRecordsPipeline);
     }
 
@@ -222,23 +251,11 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
     public void close() {
         stopping = true;
 
+        // Wake up the poller if it's blocked in poll(). This is the supported cross-thread signal.
         consumer.wakeup();
+
+        // Wait for poller to finish; poller will join workers, commit best-effort, and close consumer.
         joinPreservingInterrupt(poller);
-
-        snapshotWorkers().forEach(this::joinPreservingInterrupt);
-
-        finalizeShutdownCommitPipeline();
-
-        safeCloseConsumer();
-        log.info("Kafka consumer for topic {} shut down cleanly", topic);
-    }
-
-    private void finalizeShutdownCommitPipeline() {
-        // At this point:
-        // - poller is stopped (no more commits/drains from polling loop)
-        // - workers are joined (no more nextOffsetByPartition updates)
-        // So we can safely do a last best-effort commit.
-        commitAndResumeAllProgressPipeline();
     }
 
     private void commitAndResumeAllProgressPipeline() {
