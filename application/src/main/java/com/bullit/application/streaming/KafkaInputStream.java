@@ -1,6 +1,8 @@
 package com.bullit.application.streaming;
 
+import com.bullit.domain.port.driven.stream.BatchInputStreamPort;
 import com.bullit.domain.port.driven.stream.InputStreamPort;
+import com.bullit.domain.port.driving.stream.BatchStreamHandler;
 import com.bullit.domain.port.driving.stream.StreamHandler;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -13,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -32,7 +35,7 @@ import static com.bullit.application.FunctionUtils.retryWithBackoff;
 import static com.bullit.application.FunctionUtils.runUntilInterrupted;
 import static java.util.Objects.requireNonNull;
 
-public final class KafkaInputStream<T> implements InputStreamPort<T> {
+public final class KafkaInputStream<T> implements InputStreamPort<T>, BatchInputStreamPort<T> {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaInputStream.class);
 
@@ -42,9 +45,10 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
 
     private static final Duration POLL_TIMEOUT = Duration.ofSeconds(1);
 
-    // Backpressure + commit tuning knobs (keep as constants for now; can be moved to config later)
     private final int partitionQueueCapacity;
     private final int resumeThreshold;
+    private final int maxBatchSize;
+    private final int maxPollRecords;
 
     private static final Duration COMMIT_INTERVAL = Duration.ofMillis(250);
 
@@ -62,19 +66,22 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
 
     private volatile boolean stopping = false;
     private Thread poller;
-    private StreamHandler<T> handler;
+    private HandlerMode<T> handler;
 
     private Instant lastCommitAt = Instant.EPOCH;
 
     public KafkaInputStream(
             String topic,
             KafkaConsumer<String, T> consumer,
-            int partitionQueueCapacity
+            int partitionQueueCapacity,
+            int maxBatchSize
     ) {
         this.topic = topic;
         this.consumer = requireNonNull(consumer, "consumer");
         this.partitionQueueCapacity = partitionQueueCapacity;
         this.resumeThreshold = partitionQueueCapacity / 2;
+        this.maxBatchSize = maxBatchSize;
+        this.maxPollRecords = KafkaClientProperties.derivedMaxPollRecords(partitionQueueCapacity);
 
         this.handleRetrySubject = "handling input stream message for topic %s".formatted(topic);
         this.commitRetrySubject = "handling input stream commit for topic %s".formatted(topic);
@@ -82,13 +89,22 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
 
     @Override
     public synchronized void subscribe(StreamHandler<T> handler) {
-        log.info("Subscription received: {}", handler);
+        subscribeInternal(HandlerMode.single(handler));
+    }
+
+    @Override
+    public synchronized void subscribeBatch(BatchStreamHandler<T> handler) {
+        subscribeInternal(HandlerMode.batch(handler, maxBatchSize));
+    }
+
+    private synchronized void subscribeInternal(HandlerMode<T> handlerMode) {
+        log.info("Subscription received: {}", handlerMode);
 
         if (this.handler != null) {
             throw new IllegalStateException("KafkaInputStream for topic '%s' already has a handler".formatted(topic));
         }
 
-        this.handler = requireNonNull(handler, "handler");
+        this.handler = handlerMode;
         consumer.subscribe(Collections.singletonList(topic), rebalanceListener());
 
         startPollingLoop();
@@ -128,9 +144,11 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
     }
 
     private void dispatchRecordsPipeline(ConsumerRecords<String, T> records) {
-        records.partitions().forEach(tp ->
-                enqueuePartitionBatch(tp, records.records(tp))
-        );
+        records
+                .partitions()
+                .forEach(tp ->
+                        enqueuePartitionBatch(tp, records.records(tp))
+                );
     }
 
     private void enqueuePartitionBatch(TopicPartition tp, List<ConsumerRecord<String, T>> batch) {
@@ -313,6 +331,40 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
         }
     }
 
+    private sealed interface HandlerMode<T> permits HandlerMode.Single, HandlerMode.Batch {
+        int maxBatchSize();
+
+        void handle(List<T> payloads);
+
+        record Single<T>(StreamHandler<T> handler) implements HandlerMode<T> {
+            @Override
+            public int maxBatchSize() {
+                return 1;
+            }
+
+            @Override
+            public void handle(List<T> payloads) {
+                payloads.forEach(handler::handle);
+            }
+        }
+
+        record Batch<T>(BatchStreamHandler<T> handler, int maxBatchSize) implements HandlerMode<T> {
+            @Override
+            public void handle(List<T> payloads) {
+                handler.handleBatch(payloads);
+            }
+        }
+
+        static <T> HandlerMode<T> single(StreamHandler<T> handler) {
+            return new Single<>(handler);
+        }
+
+        static <T> HandlerMode<T> batch(BatchStreamHandler<T> handler, int maxBatchSize) {
+            if (maxBatchSize <= 0) throw new IllegalArgumentException("maxBatchSize must be > 0");
+            return new Batch<>(handler, maxBatchSize);
+        }
+    }
+
     private final class PartitionWorker {
         private final TopicPartition tp;
         private final ArrayBlockingQueue<ConsumerRecord<String, T>> queue;
@@ -336,34 +388,56 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
 
         private void runLoop() {
             while (shouldRun()) {
-                var rec = pollRecord(Duration.ofMillis(200));
-                if (rec == null) continue;
+                var records = takeBatch(Duration.ofMillis(200), handler.maxBatchSize());
+                if (records.isEmpty()) continue;
 
-                handleOnce(rec);
-                nextOffsetByPartition.put(tp, rec.offset() + 1);
+                handleRecords(records);
+                advanceOffset(records);
                 maybeRequestResume();
             }
         }
 
-        private void handleOnce(ConsumerRecord<String, T> rec) {
+        private void handleRecords(List<ConsumerRecord<String, T>> records) {
+            var payloads = records.stream().map(ConsumerRecord::value).toList();
+
             retryWithBackoff(
                     handleRetrySubject,
                     HANDLE_RETRIES,
-                    () -> handler.handle(rec.value()),
-                    e -> logPoisonRecord(rec, e),
+                    () -> handler.handle(payloads),
+                    e -> logPoisonBatch(records, e),
                     log
             );
         }
 
-        private void logPoisonRecord(ConsumerRecord<String, T> rec, Exception e) {
+        private void advanceOffset(List<ConsumerRecord<String, T>> records) {
+            var last = records.getLast();
+            nextOffsetByPartition.put(tp, last.offset() + 1);
+        }
+
+        private void logPoisonBatch(List<ConsumerRecord<String, T>> records, Exception e) {
             log.error("""
-                    Poison message after max retries
-                    Topic: {}
-                    Partition: {}
-                    Offset: {}
-                    Payload: {}
-                    Error: {}
-                    """, rec.topic(), rec.partition(), rec.offset(), rec.value(), e.toString());
+                            Poison batch of {} records after max retries
+                            Topic: {}
+                            Partitions: {}
+                            Offsets: {}
+                            Payloads: {}
+                            Error: {}
+                            """,
+                    records.size(),
+                    topic,
+                    tp.partition(),
+                    records
+                            .stream()
+                            .map(ConsumerRecord::offset)
+                            .map(Object::toString)
+                            .collect(Collectors.joining(", ")),
+                    records
+                            .stream()
+                            .map(ConsumerRecord::value)
+                            .map(Object::toString)
+                            .collect(Collectors.joining(", ")),
+                    e.toString()
+            );
         }
 
         private void maybeRequestResume() {
@@ -371,6 +445,18 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
                 resumeRequested = true;
                 resumeRequests.add(tp);
             }
+        }
+
+        private List<ConsumerRecord<String, T>> takeBatch(Duration firstPollTimeout, int maxBatchSize) {
+            var first = pollRecord(firstPollTimeout);
+            if (first == null) return List.of();
+
+            var batch = new ArrayList<ConsumerRecord<String, T>>(maxBatchSize);
+            batch.add(first);
+            queue.drainTo(batch, maxBatchSize - 1);
+
+            // making an immutable copy so a feature team cannot change the processing state
+            return List.copyOf(batch);
         }
 
         private ConsumerRecord<String, T> pollRecord(Duration timeout) {
@@ -389,7 +475,7 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
                 resumeRequested = false;
                 queue.put(rec);
 
-                return queue.remainingCapacity() == 0
+                return shouldPauseAfterEnqueue()
                         ? BackpressureSignal.PAUSE
                         : BackpressureSignal.NONE;
 
@@ -397,6 +483,11 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
                 Thread.currentThread().interrupt();
                 return BackpressureSignal.NONE;
             }
+        }
+
+        // we want to ensure a next poll would not exceed our buffer
+        private boolean shouldPauseAfterEnqueue() {
+            return queue.remainingCapacity() < maxPollRecords;
         }
 
         private void stop() {

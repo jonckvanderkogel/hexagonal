@@ -24,7 +24,7 @@ public record KafkaClientProperties(
         String schemaRegistryUrl
 ) {
 
-    public Properties buildConsumerProperties(String groupId) {
+    public Properties buildConsumerProperties(String groupId, int partitionQueueCapacity) {
         Properties props = new Properties();
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
@@ -32,12 +32,16 @@ public record KafkaClientProperties(
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class.getName());
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "500");
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, String.valueOf(derivedMaxPollRecords(partitionQueueCapacity)));
         props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, "300000"); // 5min
         props.put(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, schemaRegistryUrl);
         props.put(KafkaAvroDeserializerConfig.SPECIFIC_AVRO_READER_CONFIG, true);
 
         return props;
+    }
+
+    public static int derivedMaxPollRecords(int partitionQueueCapacity) {
+        return Math.max(1, partitionQueueCapacity / 2);
     }
 
     public Properties buildProducerProperties() {

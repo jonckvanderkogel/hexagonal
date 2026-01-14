@@ -37,9 +37,10 @@ public class TestUtils {
     public static <T> KafkaConsumer<String, T> createTestConsumer(
             KafkaClientProperties kafkaClientProperties,
             String groupId,
-            Class<T> valueType
+            Class<T> valueType,
+            int partitionQueueCapacity
     ) {
-        Properties props = kafkaClientProperties.buildConsumerProperties(groupId);
+        Properties props = kafkaClientProperties.buildConsumerProperties(groupId, partitionQueueCapacity);
 
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put("specific.avro.value.type", valueType.getName());

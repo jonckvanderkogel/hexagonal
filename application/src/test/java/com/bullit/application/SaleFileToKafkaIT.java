@@ -71,7 +71,8 @@ class SaleFileToKafkaIT {
         try (var consumer = createTestConsumer(
                 kafkaClientProperties,
                 "sale-file-it-" + UUID.randomUUID(),
-                SaleEvent.class)
+                SaleEvent.class,
+                1000)
         ) {
             consumer.subscribe(List.of(TOPIC));
 
@@ -119,7 +120,8 @@ class SaleFileToKafkaIT {
         try (var consumer = createTestConsumer(
                 kafkaClientProperties,
                 "sale-file-it-bad-" + UUID.randomUUID(),
-                SaleEvent.class)
+                SaleEvent.class,
+                1000)
         ) {
             consumer.subscribe(List.of(TOPIC));
 

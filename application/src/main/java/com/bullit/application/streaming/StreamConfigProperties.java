@@ -3,10 +3,10 @@ package com.bullit.application.streaming;
 import com.bullit.domain.port.driven.stream.StreamKey;
 import com.bullit.domain.port.driving.stream.StreamHandler;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -41,11 +41,20 @@ public record StreamConfigProperties(
             @NotBlank(message = "streams.inputs[].group-id is required")
             String groupId,
 
-            @Max(value = 50000, message = "streams.inputs[].partition-queue-capacity must be between 0 and 50.000")
-            int partitionQueueCapacity
+            @Max(value = 50000, message = "streams.inputs[].partition-queue-capacity must be between 1 and 50.000")
+            int partitionQueueCapacity,
+
+            @Max(value = 1000, message = "streams.inputs[].max-batch-size must be between 1 and 1.000")
+            int maxBatchSize
     ) {
         public InputConfig {
-            partitionQueueCapacity = partitionQueueCapacity <=0 ? 1000 : partitionQueueCapacity;
+            partitionQueueCapacity = partitionQueueCapacity <= 0 ? 1000 : partitionQueueCapacity;
+            maxBatchSize = maxBatchSize <= 0 ? 100 : maxBatchSize;
+        }
+
+        @AssertTrue(message = "streams.inputs[].max-batch-size cannot be larger than streams.inputs[].partition-queue-capacity")
+        public boolean isBatchSizeValid() {
+            return maxBatchSize <= partitionQueueCapacity;
         }
     }
 
@@ -57,7 +66,8 @@ public record StreamConfigProperties(
             String topic,
 
             Class<? extends StreamKey<?>> key
-    ) {}
+    ) {
+    }
 
     public record HandlerConfig(
             @NotNull(message = "streams.handlers[].handler-class is required")

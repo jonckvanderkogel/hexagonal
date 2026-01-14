@@ -97,7 +97,12 @@ public class StreamBootstrap {
                 .map(cfg -> {
                     log.info("Bootstrapping input stream for topic: {}", cfg.topic());
 
-                    var consumer = new KafkaConsumer<String, Object>(kafkaProps.buildConsumerProperties(cfg.groupId()));
+                    var consumerProps = kafkaProps.buildConsumerProperties(
+                            cfg.groupId(),
+                            cfg.partitionQueueCapacity()
+                    );
+
+                    var consumer = new KafkaConsumer<String, Object>(consumerProps);
 
                     var resolvableType = ResolvableType
                             .forClassWithGenerics(
@@ -110,6 +115,7 @@ public class StreamBootstrap {
                     beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.topic());
                     beanDef.getConstructorArgumentValues().addGenericArgumentValue(consumer);
                     beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.partitionQueueCapacity());
+                    beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.maxBatchSize());
 
                     var beanName = "inputStream:" + cfg.payloadType().getName();
                     registry.registerBeanDefinition(beanName, beanDef);

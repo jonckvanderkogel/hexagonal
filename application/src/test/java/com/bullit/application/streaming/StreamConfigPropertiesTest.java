@@ -16,7 +16,13 @@ final class StreamConfigPropertiesTest {
     @Test
     void validConfig_hasNoViolations() {
         var config = new StreamConfigProperties(
-                List.of(new StreamConfigProperties.InputConfig(String.class, "in-topic", "group-1", 1000)),
+                List.of(new StreamConfigProperties.InputConfig(
+                        String.class,
+                        "in-topic",
+                        "group-1",
+                        1000,
+                        100
+                )),
                 List.of(new StreamConfigProperties.OutputConfig(String.class, "out-topic", TestStreamKey.class)),
                 List.of(new StreamConfigProperties.HandlerConfig(TestStreamHandler.class))
         );
@@ -48,7 +54,13 @@ final class StreamConfigPropertiesTest {
     @Test
     void inputConfig_payloadType_isRequired() {
         var config = new StreamConfigProperties(
-                List.of(new StreamConfigProperties.InputConfig(null, "topic", "group", 1000)),
+                List.of(new StreamConfigProperties.InputConfig(
+                        null,
+                        "topic",
+                        "group",
+                        1000,
+                        100
+                )),
                 List.of(),
                 List.of()
         );
@@ -63,7 +75,13 @@ final class StreamConfigPropertiesTest {
     @Test
     void inputConfig_topic_isRequired() {
         var config = new StreamConfigProperties(
-                List.of(new StreamConfigProperties.InputConfig(String.class, "", "group", 1000)),
+                List.of(new StreamConfigProperties.InputConfig(
+                        String.class,
+                        "",
+                        "group",
+                        1000,
+                        100
+                )),
                 List.of(),
                 List.of()
         );
@@ -78,7 +96,13 @@ final class StreamConfigPropertiesTest {
     @Test
     void inputConfig_groupId_isRequired() {
         var config = new StreamConfigProperties(
-                List.of(new StreamConfigProperties.InputConfig(String.class, "topic", "", 1000)),
+                List.of(new StreamConfigProperties.InputConfig(
+                        String.class,
+                        "topic",
+                        "",
+                        1000,
+                        100
+                )),
                 List.of(),
                 List.of()
         );
@@ -92,8 +116,20 @@ final class StreamConfigPropertiesTest {
 
     @Test
     void inputConfig_partitionQueueCapacity_defaultsTo1000_whenZeroOrNegative() {
-        var zero = new StreamConfigProperties.InputConfig(String.class, "topic", "group", 0);
-        var negative = new StreamConfigProperties.InputConfig(String.class, "topic", "group", -1);
+        var zero = new StreamConfigProperties.InputConfig(
+                String.class,
+                "topic",
+                "group",
+                0,
+                1
+        );
+        var negative = new StreamConfigProperties.InputConfig(
+                String.class,
+                "topic",
+                "group",
+                -1,
+                1
+        );
 
         assertSoftly(s -> {
             s.assertThat(zero.partitionQueueCapacity()).isEqualTo(1000);
@@ -104,7 +140,13 @@ final class StreamConfigPropertiesTest {
     @Test
     void inputConfig_partitionQueueCapacity_isBoundedAbove() {
         var config = new StreamConfigProperties(
-                List.of(new StreamConfigProperties.InputConfig(String.class, "topic", "group", 50_001)),
+                List.of(new StreamConfigProperties.InputConfig(
+                        String.class,
+                        "topic",
+                        "group",
+                        50_001,
+                        100
+                )),
                 List.of(),
                 List.of()
         );
@@ -112,8 +154,93 @@ final class StreamConfigPropertiesTest {
         var violations = validate(config);
 
         assertSoftly(s -> s.check(() ->
-                anyMessageContains(violations, "streams.inputs[].partition-queue-capacity must be between 0 and 50.000")
+                anyMessageContains(violations, "streams.inputs[].partition-queue-capacity must be between 1 and 50.000")
         ));
+    }
+
+    @Test
+    void inputConfig_maxBatchSize_defaultsTo100_whenZeroOrNegative() {
+        var zero = new StreamConfigProperties.InputConfig(
+                String.class,
+                "topic",
+                "group",
+                1000,
+                0
+        );
+        var negative = new StreamConfigProperties.InputConfig(
+                String.class,
+                "topic",
+                "group",
+                1000,
+                -1
+        );
+
+        assertSoftly(s -> {
+            s.assertThat(zero.maxBatchSize()).isEqualTo(100);
+            s.assertThat(negative.maxBatchSize()).isEqualTo(100);
+        });
+    }
+
+    @Test
+    void inputConfig_maxBatchSize_isBoundedAbove() {
+        var config = new StreamConfigProperties(
+                List.of(new StreamConfigProperties.InputConfig(
+                        String.class,
+                        "topic",
+                        "group",
+                        10_000,
+                        1_001
+                )),
+                List.of(),
+                List.of()
+        );
+
+        var violations = validate(config);
+
+        assertSoftly(s -> s.check(() ->
+                anyMessageContains(violations, "streams.inputs[].max-batch-size must be between 1 and 1.000")
+        ));
+    }
+
+    @Test
+    void inputConfig_maxBatchSize_cannot_exceed_partitionQueueCapacity() {
+        var config = new StreamConfigProperties(
+                List.of(new StreamConfigProperties.InputConfig(
+                        String.class,
+                        "topic",
+                        "group",
+                        10,
+                        11
+                )),
+                List.of(),
+                List.of()
+        );
+
+        var violations = validate(config);
+
+        assertSoftly(s -> s.check(() ->
+                anyMessageContains(
+                        violations,
+                        "streams.inputs[].max-batch-size cannot be larger than streams.inputs[].partition-queue-capacity"
+                )
+        ));
+    }
+
+    @Test
+    void inputConfig_maxBatchSize_can_equal_partitionQueueCapacity() {
+        var config = new StreamConfigProperties(
+                List.of(new StreamConfigProperties.InputConfig(
+                        String.class,
+                        "topic",
+                        "group",
+                        10,
+                        10
+                )),
+                List.of(),
+                List.of()
+        );
+
+        assertSoftly(s -> s.check(() -> assertNoViolations(validate(config))));
     }
 
     @Test

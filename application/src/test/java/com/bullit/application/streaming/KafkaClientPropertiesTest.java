@@ -50,7 +50,7 @@ class KafkaClientPropertiesTest {
         var kafka = new KafkaClientProperties("localhost:9092", "http://localhost:8081");
         var groupId = "test-" + UUID.randomUUID();
 
-        Properties props = kafka.buildConsumerProperties(groupId);
+        Properties props = kafka.buildConsumerProperties(groupId, 1000);
 
         assertThat(props.getProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG))
                 .isEqualTo("localhost:9092");

@@ -153,7 +153,8 @@ class RoyaltyHttpIT {
                      createTestConsumer(
                              kafkaClientProperties,
                              "royalty-it-" + UUID.randomUUID(),
-                             RoyaltyReportEvent.class
+                             RoyaltyReportEvent.class,
+                             1000
                      )) {
 
             consumer.subscribe(List.of("author-royalties"));
