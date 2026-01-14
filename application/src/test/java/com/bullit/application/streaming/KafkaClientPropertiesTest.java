@@ -103,7 +103,7 @@ class KafkaClientPropertiesTest {
         assertThat(props.getProperty(ProducerConfig.BATCH_SIZE_CONFIG))
                 .isEqualTo("32768");
         assertThat(props.getProperty(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION))
-                .isEqualTo("1");
+                .isEqualTo("5");
 
         assertThat(props.getProperty(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG))
                 .isEqualTo("http://localhost:8081");

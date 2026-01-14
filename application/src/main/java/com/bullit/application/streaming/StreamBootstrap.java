@@ -109,6 +109,7 @@ public class StreamBootstrap {
                     beanDef.setTargetType(resolvableType);
                     beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.topic());
                     beanDef.getConstructorArgumentValues().addGenericArgumentValue(consumer);
+                    beanDef.getConstructorArgumentValues().addGenericArgumentValue(cfg.partitionQueueCapacity());
 
                     var beanName = "inputStream:" + cfg.payloadType().getName();
                     registry.registerBeanDefinition(beanName, beanDef);

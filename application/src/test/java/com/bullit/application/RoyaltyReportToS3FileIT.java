@@ -113,7 +113,8 @@ class RoyaltyReportToS3FileIT {
                             new StreamConfigProperties.InputConfig(
                                     com.bullit.domain.event.RoyaltyReportEvent.class,
                                     INPUT_TOPIC,
-                                    "royalty-report-to-s3-it"
+                                    "royalty-report-to-s3-it",
+                                    1000
                             )),
                     List.of(
                             new StreamConfigProperties.OutputConfig(

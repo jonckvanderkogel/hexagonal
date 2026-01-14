@@ -12,15 +12,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.bullit.application.FunctionUtils.retryWithBackoff;
@@ -37,6 +42,12 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
 
     private static final Duration POLL_TIMEOUT = Duration.ofSeconds(1);
 
+    // Backpressure + commit tuning knobs (keep as constants for now; can be moved to config later)
+    private final int partitionQueueCapacity;
+    private final int resumeThreshold;
+
+    private static final Duration COMMIT_INTERVAL = Duration.ofMillis(250);
+
     private final KafkaConsumer<String, T> consumer;
     private final String topic;
 
@@ -44,18 +55,26 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
     private final String commitRetrySubject;
 
     private final Map<TopicPartition, Long> nextOffsetByPartition = new ConcurrentHashMap<>();
-    private final Queue<TopicPartition> completions = new ConcurrentLinkedQueue<>();
-    private final Set<TopicPartition> revoked = ConcurrentHashMap.newKeySet();
+    private final Map<TopicPartition, PartitionWorker> workersByPartition = new ConcurrentHashMap<>();
 
-    private final Set<Thread> workers = Collections.synchronizedSet(ConcurrentHashMap.newKeySet());
+    private final Queue<TopicPartition> resumeRequests = new ConcurrentLinkedQueue<>();
+    private final Set<TopicPartition> paused = ConcurrentHashMap.newKeySet();
 
     private volatile boolean stopping = false;
     private Thread poller;
     private StreamHandler<T> handler;
 
-    public KafkaInputStream(String topic, KafkaConsumer<String, T> consumer) {
+    private Instant lastCommitAt = Instant.EPOCH;
+
+    public KafkaInputStream(
+            String topic,
+            KafkaConsumer<String, T> consumer,
+            int partitionQueueCapacity
+    ) {
         this.topic = topic;
         this.consumer = requireNonNull(consumer, "consumer");
+        this.partitionQueueCapacity = partitionQueueCapacity;
+        this.resumeThreshold = partitionQueueCapacity / 2;
 
         this.handleRetrySubject = "handling input stream message for topic %s".formatted(topic);
         this.commitRetrySubject = "handling input stream commit for topic %s".formatted(topic);
@@ -79,43 +98,19 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
     private void startPollingLoop() {
         poller = Thread.ofVirtual().start(() -> {
             try {
-                runUntilInterrupted(
-                        this::pollIteration,
-                        () -> stopping
-                );
+                runUntilInterrupted(this::pollIteration, () -> stopping);
             } finally {
-                // IMPORTANT: KafkaConsumer is NOT thread-safe. All consumer interactions
-                // (commit/resume/close) must happen on this poller thread.
                 shutdownOnPollerThread();
             }
         });
     }
 
-    private void shutdownOnPollerThread() {
-        // At this point:
-        // - stopping is true OR we were interrupted/woken up
-        // - no further poll iterations should run
-        //
-        // We now:
-        // 1) wait for workers to finish (they may still advance offsets / enqueue completions)
-        // 2) do a last best-effort commit of all progress
-        // 3) close the consumer
-        try {
-            snapshotWorkers().forEach(this::joinPreservingInterrupt);
-
-            // No more nextOffsetByPartition updates after workers are joined.
-            commitAndResumeAllProgressPipeline();
-        } catch (Exception e) {
-            log.warn("Error during poller-thread shutdown for topic {}", topic, e);
-        } finally {
-            safeCloseConsumer();
-            log.info("Kafka consumer for topic {} shut down cleanly", topic);
-        }
-    }
-
     private void pollIteration() {
-        drainCompletionsPipeline();
+        drainResumeRequestsPipeline();
+        commitProgressIfDue();
+
         if (stopping) return;
+
         pollRecords().ifPresent(this::dispatchRecordsPipeline);
     }
 
@@ -132,85 +127,87 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
         );
     }
 
-    private void drainCompletionsPipeline() {
-        drainQueue(completions)
-                .filter(tp -> !revoked.contains(tp))
-                .forEach(this::commitAndResumePartition);
-    }
-
-    private void commitAndResumePartition(TopicPartition tp) {
-        commitPartitionWithRetry(tp, nextOffsetByPartition.get(tp));
-        resumePartition(tp);
-    }
-
     private void dispatchRecordsPipeline(ConsumerRecords<String, T> records) {
-        if (records.isEmpty()) return;
-
-        records.partitions().stream()
-                .filter(tp -> !revoked.contains(tp))
-                .map(tp -> Map.entry(tp, records.records(tp)))
-                .filter(e -> e.getValue() != null && !e.getValue().isEmpty())
-                .forEach(e -> pauseAndSpawnWorker(e.getKey(), e.getValue()));
-    }
-
-    private void pauseAndSpawnWorker(TopicPartition tp, List<ConsumerRecord<String, T>> batch) {
-        pausePartition(tp);
-
-        var t = Thread.ofVirtual().start(() -> runWorkerBatch(tp, batch));
-        workers.add(t);
-    }
-
-    private void runWorkerBatch(TopicPartition tp, List<ConsumerRecord<String, T>> batch) {
-        try {
-            batch.stream()
-                    .takeWhile(_ -> !stopping && !revoked.contains(tp))
-                    .forEach(rec -> handleAndAdvanceOffset(tp, rec));
-
-            if (!revoked.contains(tp)) {
-                completions.add(tp);
-            }
-        } finally {
-            workers.remove(Thread.currentThread());
-        }
-    }
-
-    private void handleAndAdvanceOffset(TopicPartition tp, ConsumerRecord<String, T> rec) {
-        handleOnce(rec);
-
-        nextOffsetByPartition.put(tp, rec.offset() + 1);
-    }
-
-    private void handleOnce(ConsumerRecord<String, T> rec) {
-        retryWithBackoff(
-                handleRetrySubject,
-                HANDLE_RETRIES,
-                () -> handler.handle(rec.value()),
-                e -> logPoisonRecord(rec, e),
-                log
+        records.partitions().forEach(tp ->
+                enqueuePartitionBatch(tp, records.records(tp))
         );
+    }
+
+    private void enqueuePartitionBatch(TopicPartition tp, List<ConsumerRecord<String, T>> batch) {
+        var worker = workerFor(tp);
+
+        batch.forEach(rec -> {
+            if (stopping) return;
+
+            if (worker.enqueue(rec) == BackpressureSignal.PAUSE) {
+                pausePartition(tp);
+            }
+        });
+    }
+
+    private PartitionWorker workerFor(TopicPartition tp) {
+        return workersByPartition.computeIfAbsent(tp, this::startWorkerForPartition);
+    }
+
+    private PartitionWorker startWorkerForPartition(TopicPartition tp) {
+        var worker = new PartitionWorker(tp, partitionQueueCapacity);
+        worker.start();
+        return worker;
     }
 
     private void pausePartition(TopicPartition tp) {
-        consumer.pause(Collections.singleton(tp));
+        if (paused.add(tp)) {
+            consumer.pause(Collections.singleton(tp));
+        }
     }
 
     private void resumePartition(TopicPartition tp) {
-        consumer.resume(Collections.singleton(tp));
+        if (paused.remove(tp)) {
+            consumer.resume(Collections.singleton(tp));
+        }
     }
 
-    private void commitPartitionWithRetry(TopicPartition tp, long nextOffset) {
+    private void drainResumeRequestsPipeline() {
+        drainQueue(resumeRequests)
+                .filter(workersByPartition::containsKey)
+                .forEach(this::resumePartition);
+    }
+
+    private void commitProgressIfDue() {
+        if (!isCommitDue()) return;
+        commitAllProgress();
+        lastCommitAt = Instant.now();
+    }
+
+    private boolean isCommitDue() {
+        return Duration.between(lastCommitAt, Instant.now()).compareTo(COMMIT_INTERVAL) >= 0;
+    }
+
+    private void commitAllProgress() {
+        var offsets = commitOffsetsSnapshot();
+        if (offsets.isEmpty()) return;
+
         retryWithBackoff(
                 commitRetrySubject,
                 COMMIT_RETRIES,
-                () -> commitPartition(tp, nextOffset),
-                e -> logCommitFailure(tp, nextOffset, e),
+                () -> commitSync(offsets),
+                e -> logCommitFailure(offsets, e),
                 log
         );
     }
 
-    private void commitPartition(TopicPartition tp, long nextOffset) {
-        consumer.commitSync(Map.of(tp, new OffsetAndMetadata(nextOffset)));
-        log.debug("Consumer committed partition {} -> {}", tp, nextOffset);
+    private Map<TopicPartition, OffsetAndMetadata> commitOffsetsSnapshot() {
+        return nextOffsetByPartition.entrySet().stream()
+                .filter(e -> e.getKey() != null && e.getValue() != null)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> new OffsetAndMetadata(e.getValue())
+                ));
+    }
+
+    private void commitSync(Map<TopicPartition, OffsetAndMetadata> offsets) {
+        consumer.commitSync(offsets);
+        log.debug("Consumer committed {} partitions for topic {}", offsets.size(), topic);
     }
 
     private ConsumerRebalanceListener rebalanceListener() {
@@ -228,59 +225,60 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
     }
 
     private void onRevokedPipeline(Collection<TopicPartition> partitions) {
-        revoked.addAll(partitions);
+        stopAndJoinRevokedWorkers(partitions);
 
-        // Best-effort commit of progress so far (at most one in-flight record may duplicate).
-        partitions.stream()
-                .map(tp -> Map.entry(tp, nextOffsetByPartition.get(tp)))
-                .filter(e -> e.getValue() != null)
-                .forEach(e -> commitPartitionWithRetry(e.getKey(), e.getValue()));
+        commitAllProgress();
 
-        // We no longer own these partitions; clean up any progress we were tracking.
         partitions.forEach(nextOffsetByPartition::remove);
+        partitions.forEach(paused::remove);
 
         log.info("Partitions revoked for topic {}: {}", topic, partitions);
     }
 
-    private void onAssignedPipeline(Collection<TopicPartition> partitions) {
-        partitions.forEach(revoked::remove);
+    private void stopAndJoinRevokedWorkers(Collection<TopicPartition> partitions) {
+        partitions.stream()
+                .map(workersByPartition::remove)
+                .filter(Objects::nonNull)
+                .forEach(w -> {
+                    w.stop();
+                    w.join();
+                });
+    }
 
+    private void onAssignedPipeline(Collection<TopicPartition> partitions) {
+        partitions.forEach(this::resumePartition);
         log.info("Partitions assigned for topic {}: {}", topic, partitions);
     }
 
     public void close() {
         stopping = true;
-
-        // Wake up the poller if it's blocked in poll(). This is the supported cross-thread signal.
         consumer.wakeup();
-
-        // Wait for poller to finish; poller will join workers, commit best-effort, and close consumer.
         joinPreservingInterrupt(poller);
     }
 
-    private void commitAndResumeAllProgressPipeline() {
-        commitTargetsOnShutdown()
-                .forEach(this::commitAndResumePartitionIfProgressPresent);
+    private void shutdownOnPollerThread() {
+        try {
+            stopAllWorkers();
+            joinAllWorkers();
+
+            commitAllProgress();
+
+            paused.forEach(this::resumePartition);
+        } catch (Exception e) {
+            log.warn("Error during poller-thread shutdown for topic {}", topic, e);
+        } finally {
+            safeCloseConsumer();
+            log.info("Kafka consumer for topic {} shut down cleanly", topic);
+        }
     }
 
-    private Stream<TopicPartition> commitTargetsOnShutdown() {
-        // Union of:
-        // - partitions that completed normally (completions queue)
-        // - partitions that have progressed offsets (nextOffsetByPartition keys)
-        return Stream.concat(
-                        drainQueue(completions),
-                        nextOffsetByPartition.keySet().stream()
-                )
-                .filter(tp -> !revoked.contains(tp))
-                .distinct();
+    private void stopAllWorkers() {
+        workersByPartition.values().forEach(PartitionWorker::stop);
     }
 
-    private void commitAndResumePartitionIfProgressPresent(TopicPartition tp) {
-        var nextOffset = nextOffsetByPartition.get(tp);
-        if (nextOffset == null) return;
-
-        commitPartitionWithRetry(tp, nextOffset);
-        resumePartition(tp);
+    private void joinAllWorkers() {
+        workersByPartition.values().forEach(PartitionWorker::join);
+        workersByPartition.clear();
     }
 
     private void safeCloseConsumer() {
@@ -291,36 +289,18 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
         }
     }
 
-    private void logCommitFailure(TopicPartition tp, long nextOffset, Exception e) {
+    private void logCommitFailure(Map<TopicPartition, OffsetAndMetadata> offsets, Exception e) {
         log.error("""
                 Commit failed after retries
                 Topic: {}
-                Partition: {}
-                NextOffset: {}
+                Partitions: {}
                 Error: {}
-                """, tp.topic(), tp.partition(), nextOffset, e.toString());
-    }
-
-    private void logPoisonRecord(ConsumerRecord<String, T> rec, Exception e) {
-        log.error("""
-                Poison message after max retries
-                Topic: {}
-                Partition: {}
-                Offset: {}
-                Payload: {}
-                Error: {}
-                """, rec.topic(), rec.partition(), rec.offset(), rec.value(), e.toString());
+                """, topic, offsets.keySet(), e.toString());
     }
 
     private static <E> Stream<E> drainQueue(Queue<E> queue) {
         return Stream.generate(queue::poll)
-                .takeWhile(java.util.Objects::nonNull);
-    }
-
-    private List<Thread> snapshotWorkers() {
-        synchronized (workers) {
-            return List.copyOf(workers);
-        }
+                .takeWhile(Objects::nonNull);
     }
 
     private void joinPreservingInterrupt(Thread t) {
@@ -331,5 +311,107 @@ public final class KafkaInputStream<T> implements InputStreamPort<T> {
         } catch (InterruptedException ignored) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private final class PartitionWorker {
+        private final TopicPartition tp;
+        private final ArrayBlockingQueue<ConsumerRecord<String, T>> queue;
+
+        private volatile boolean stopped = false;
+        private boolean resumeRequested = false;
+        private Thread thread;
+
+        private PartitionWorker(TopicPartition tp, int capacity) {
+            this.tp = tp;
+            this.queue = new ArrayBlockingQueue<>(capacity);
+        }
+
+        private void start() {
+            thread = Thread.ofVirtual().start(this::runLoop);
+        }
+
+        private boolean shouldRun() {
+            return !stopped && !stopping;
+        }
+
+        private void runLoop() {
+            while (shouldRun()) {
+                var rec = pollRecord(Duration.ofMillis(200));
+                if (rec == null) continue;
+
+                handleOnce(rec);
+                nextOffsetByPartition.put(tp, rec.offset() + 1);
+                maybeRequestResume();
+            }
+        }
+
+        private void handleOnce(ConsumerRecord<String, T> rec) {
+            retryWithBackoff(
+                    handleRetrySubject,
+                    HANDLE_RETRIES,
+                    () -> handler.handle(rec.value()),
+                    e -> logPoisonRecord(rec, e),
+                    log
+            );
+        }
+
+        private void logPoisonRecord(ConsumerRecord<String, T> rec, Exception e) {
+            log.error("""
+                    Poison message after max retries
+                    Topic: {}
+                    Partition: {}
+                    Offset: {}
+                    Payload: {}
+                    Error: {}
+                    """, rec.topic(), rec.partition(), rec.offset(), rec.value(), e.toString());
+        }
+
+        private void maybeRequestResume() {
+            if (!resumeRequested && queue.size() <= resumeThreshold) {
+                resumeRequested = true;
+                resumeRequests.add(tp);
+            }
+        }
+
+        private ConsumerRecord<String, T> pollRecord(Duration timeout) {
+            try {
+                return queue.poll(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+        }
+
+        private BackpressureSignal enqueue(ConsumerRecord<String, T> rec) {
+            if (!shouldRun()) return BackpressureSignal.NONE;
+
+            try {
+                resumeRequested = false;
+                queue.put(rec);
+
+                return queue.remainingCapacity() == 0
+                        ? BackpressureSignal.PAUSE
+                        : BackpressureSignal.NONE;
+
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+                return BackpressureSignal.NONE;
+            }
+        }
+
+        private void stop() {
+            stopped = true;
+            queue.clear();
+            Optional.ofNullable(thread).ifPresent(Thread::interrupt);
+        }
+
+        private void join() {
+            joinPreservingInterrupt(thread);
+        }
+    }
+
+    private enum BackpressureSignal {
+        NONE,
+        PAUSE
     }
 }
