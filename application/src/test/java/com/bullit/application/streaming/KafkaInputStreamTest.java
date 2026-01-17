@@ -267,6 +267,7 @@ final class KafkaInputStreamTest {
         var listener = rebalanceCaptor.getValue();
 
         // Trigger revoke
+        assertSoftly(s -> s.assertThat(await(handled, 2, TimeUnit.SECONDS)).isTrue());
         listener.onPartitionsRevoked(List.of(tp));
 
         var commitCaptor = ArgumentCaptor.forClass(Map.class);

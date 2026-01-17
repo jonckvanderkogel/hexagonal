@@ -2,7 +2,7 @@ spring:
   main:
     allow-bean-definition-overriding: true
   jpa:
-    show-sql: true
+    show-sql: false #set to true to debug JPA SQL
   liquibase:
     enabled: true
     contexts: test
@@ -29,5 +29,5 @@ logging:
       hibernate:
         orm:
           jdbc:
-            bind: TRACE
-    com.bullit.application.streaming: DEBUG
+            bind: INFO # Set to TRACE to see argument values
+    com.bullit.application.streaming: INFO # Set to DEBUG to get test log output

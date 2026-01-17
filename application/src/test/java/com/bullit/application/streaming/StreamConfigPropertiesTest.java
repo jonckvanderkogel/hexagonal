@@ -1,6 +1,7 @@
 package com.bullit.application.streaming;
 
 import com.bullit.domain.port.driven.stream.StreamKey;
+import com.bullit.domain.port.driving.stream.BatchStreamHandler;
 import com.bullit.domain.port.driving.stream.StreamHandler;
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +25,8 @@ final class StreamConfigPropertiesTest {
                         100
                 )),
                 List.of(new StreamConfigProperties.OutputConfig(String.class, "out-topic", TestStreamKey.class)),
-                List.of(new StreamConfigProperties.HandlerConfig(TestStreamHandler.class))
+                List.of(new StreamConfigProperties.HandlerConfig(TestStreamHandler.class)),
+                List.of(new StreamConfigProperties.BatchHandlerConfig(TestBatchStreamHandler.class))
         );
 
         assertSoftly(s -> s.check(() -> assertNoViolations(validate(config))));
@@ -32,23 +34,30 @@ final class StreamConfigPropertiesTest {
 
     @Test
     void inputsOrEmpty_returnsEmptyListWhenInputsNull() {
-        var config = new StreamConfigProperties(null, List.of(), List.of());
+        var config = new StreamConfigProperties(null, List.of(), List.of(), List.of());
 
         assertSoftly(s -> s.assertThat(config.inputsOrEmpty()).isEmpty());
     }
 
     @Test
     void outputsOrEmpty_returnsEmptyListWhenOutputsNull() {
-        var config = new StreamConfigProperties(List.of(), null, List.of());
+        var config = new StreamConfigProperties(List.of(), null, List.of(), List.of());
 
         assertSoftly(s -> s.assertThat(config.outputsOrEmpty()).isEmpty());
     }
 
     @Test
     void handlersOrEmpty_returnsEmptyListWhenHandlersNull() {
-        var config = new StreamConfigProperties(List.of(), List.of(), null);
+        var config = new StreamConfigProperties(List.of(), List.of(), null, List.of());
 
         assertSoftly(s -> s.assertThat(config.handlersOrEmpty()).isEmpty());
+    }
+
+    @Test
+    void batchStreamHandlersOrEmpty_returnsEmptyListWhenBatchStreamHandlersNull() {
+        var config = new StreamConfigProperties(List.of(), List.of(), List.of(), null);
+
+        assertSoftly(s -> s.assertThat(config.batchStreamHandlersOrEmpty()).isEmpty());
     }
 
     @Test
@@ -61,6 +70,7 @@ final class StreamConfigPropertiesTest {
                         1000,
                         100
                 )),
+                List.of(),
                 List.of(),
                 List.of()
         );
@@ -83,6 +93,7 @@ final class StreamConfigPropertiesTest {
                         100
                 )),
                 List.of(),
+                List.of(),
                 List.of()
         );
 
@@ -103,6 +114,7 @@ final class StreamConfigPropertiesTest {
                         1000,
                         100
                 )),
+                List.of(),
                 List.of(),
                 List.of()
         );
@@ -148,6 +160,7 @@ final class StreamConfigPropertiesTest {
                         100
                 )),
                 List.of(),
+                List.of(),
                 List.of()
         );
 
@@ -159,7 +172,7 @@ final class StreamConfigPropertiesTest {
     }
 
     @Test
-    void inputConfig_maxBatchSize_defaultsTo100_whenZeroOrNegative() {
+    void inputConfig_maxBatchSize_defaultsTo1000_whenZeroOrNegative() {
         var zero = new StreamConfigProperties.InputConfig(
                 String.class,
                 "topic",
@@ -176,8 +189,8 @@ final class StreamConfigPropertiesTest {
         );
 
         assertSoftly(s -> {
-            s.assertThat(zero.maxBatchSize()).isEqualTo(100);
-            s.assertThat(negative.maxBatchSize()).isEqualTo(100);
+            s.assertThat(zero.maxBatchSize()).isEqualTo(1000);
+            s.assertThat(negative.maxBatchSize()).isEqualTo(1000);
         });
     }
 
@@ -189,8 +202,9 @@ final class StreamConfigPropertiesTest {
                         "topic",
                         "group",
                         10_000,
-                        1_001
+                        10_001
                 )),
+                List.of(),
                 List.of(),
                 List.of()
         );
@@ -198,7 +212,7 @@ final class StreamConfigPropertiesTest {
         var violations = validate(config);
 
         assertSoftly(s -> s.check(() ->
-                anyMessageContains(violations, "streams.inputs[].max-batch-size must be between 1 and 1.000")
+                anyMessageContains(violations, "streams.inputs[].max-batch-size must be between 1 and 10.000")
         ));
     }
 
@@ -212,6 +226,7 @@ final class StreamConfigPropertiesTest {
                         10,
                         11
                 )),
+                List.of(),
                 List.of(),
                 List.of()
         );
@@ -237,6 +252,7 @@ final class StreamConfigPropertiesTest {
                         10
                 )),
                 List.of(),
+                List.of(),
                 List.of()
         );
 
@@ -248,6 +264,7 @@ final class StreamConfigPropertiesTest {
         var config = new StreamConfigProperties(
                 List.of(),
                 List.of(new StreamConfigProperties.OutputConfig(null, "topic", null)),
+                List.of(),
                 List.of()
         );
 
@@ -263,6 +280,7 @@ final class StreamConfigPropertiesTest {
         var config = new StreamConfigProperties(
                 List.of(),
                 List.of(new StreamConfigProperties.OutputConfig(String.class, "", null)),
+                List.of(),
                 List.of()
         );
 
@@ -278,6 +296,7 @@ final class StreamConfigPropertiesTest {
         var config = new StreamConfigProperties(
                 List.of(),
                 List.of(new StreamConfigProperties.OutputConfig(String.class, "topic", null)),
+                List.of(),
                 List.of()
         );
 
@@ -289,13 +308,30 @@ final class StreamConfigPropertiesTest {
         var config = new StreamConfigProperties(
                 List.of(),
                 List.of(),
-                List.of(new StreamConfigProperties.HandlerConfig(null))
+                List.of(new StreamConfigProperties.HandlerConfig(null)),
+                List.of()
         );
 
         var violations = validate(config);
 
         assertSoftly(s -> s.check(() ->
                 anyMessageContains(violations, "streams.handlers[].handler-class is required")
+        ));
+    }
+
+    @Test
+    void batchHandlerConfig_handlerClass_isRequired() {
+        var config = new StreamConfigProperties(
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(new StreamConfigProperties.BatchHandlerConfig(null))
+        );
+
+        var violations = validate(config);
+
+        assertSoftly(s -> s.check(() ->
+                anyMessageContains(violations, "streams.batch-handlers[].handler-class is required")
         ));
     }
 
@@ -314,6 +350,13 @@ final class StreamConfigPropertiesTest {
     static final class TestStreamHandler implements StreamHandler<String> {
         @Override
         public void handle(String event) {
+            // no-op
+        }
+    }
+
+    static final class TestBatchStreamHandler implements BatchStreamHandler<String> {
+        @Override
+        public void handleBatch(List<String> events) {
             // no-op
         }
     }

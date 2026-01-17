@@ -1,6 +1,7 @@
 package com.bullit.application.streaming;
 
 import com.bullit.domain.port.driven.stream.StreamKey;
+import com.bullit.domain.port.driving.stream.BatchStreamHandler;
 import com.bullit.domain.port.driving.stream.StreamHandler;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
@@ -17,7 +18,8 @@ import java.util.List;
 public record StreamConfigProperties(
         List<@Valid InputConfig> inputs,
         List<@Valid OutputConfig> outputs,
-        List<@Valid HandlerConfig> handlers
+        List<@Valid HandlerConfig> handlers,
+        List<@Valid BatchHandlerConfig> batchStreamHandlers
 ) {
     public List<InputConfig> inputsOrEmpty() {
         return inputs == null ? List.of() : inputs;
@@ -29,6 +31,10 @@ public record StreamConfigProperties(
 
     public List<HandlerConfig> handlersOrEmpty() {
         return handlers == null ? List.of() : handlers;
+    }
+
+    public List<BatchHandlerConfig> batchStreamHandlersOrEmpty() {
+        return batchStreamHandlers == null ? List.of() : batchStreamHandlers;
     }
 
     public record InputConfig(
@@ -44,12 +50,12 @@ public record StreamConfigProperties(
             @Max(value = 50000, message = "streams.inputs[].partition-queue-capacity must be between 1 and 50.000")
             int partitionQueueCapacity,
 
-            @Max(value = 1000, message = "streams.inputs[].max-batch-size must be between 1 and 1.000")
+            @Max(value = 10000, message = "streams.inputs[].max-batch-size must be between 1 and 10.000")
             int maxBatchSize
     ) {
         public InputConfig {
             partitionQueueCapacity = partitionQueueCapacity <= 0 ? 1000 : partitionQueueCapacity;
-            maxBatchSize = maxBatchSize <= 0 ? 100 : maxBatchSize;
+            maxBatchSize = maxBatchSize <= 0 ? 1000 : maxBatchSize;
         }
 
         @AssertTrue(message = "streams.inputs[].max-batch-size cannot be larger than streams.inputs[].partition-queue-capacity")
@@ -72,6 +78,11 @@ public record StreamConfigProperties(
     public record HandlerConfig(
             @NotNull(message = "streams.handlers[].handler-class is required")
             Class<? extends StreamHandler<?>> handlerClass
+    ) {
+    }
+    public record BatchHandlerConfig(
+            @NotNull(message = "streams.batch-handlers[].handler-class is required")
+            Class<? extends BatchStreamHandler<?>> handlerClass
     ) {
     }
 }

@@ -125,7 +125,8 @@ class RoyaltyReportToS3FileIT {
                             )), // this one is needed for the royaltyServicePort in BeansConfig
                     List.of(
                             new StreamConfigProperties.HandlerConfig(RoyaltyReportToS3FileHandler.class)
-                    )
+                    ),
+                    List.of()
             );
         }
 

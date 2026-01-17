@@ -49,6 +49,34 @@ public final class KafkaOutputStream<T> implements OutputStreamPort<T>, AutoClos
         );
     }
 
+    @Override
+    public void fireAndForget(T element) {
+        log.debug("Sending async event for topic {}", topic);
+        producer.send(
+                new ProducerRecord<>(topic, element),
+                (_, exception) -> {
+                    log.debug("Callback triggered for topic {} and element {}", topic, element);
+                    if (exception != null) {
+                        log.error("Received error: {}", element, exception);
+                        Thread.ofVirtual().start(() ->
+                                retryWithBackoff(
+                                        sendRetrySubject,
+                                        MAX_RETRY_ATTEMPTS,
+                                        () -> retrySendSynchronously(element),
+                                        ex -> logPoisonMessage(element, ex),
+                                        log
+                                )
+                        );
+                    }
+                }
+        );
+    }
+
+    private void retrySendSynchronously(T element) throws Exception {
+        log.warn("Retrying: {}", element);
+        sendAndAwaitAck(element);
+    }
+
     private void sendAndAwaitAck(T element) throws Exception {
         producer.send(new ProducerRecord<>(topic, keyFun.apply(element), element)).get();
     }

@@ -85,4 +85,21 @@
             <column name="sold_at"/>
         </createIndex>
     </changeSet>
+    <changeSet id="4-foo" author="jonck">
+        <createSequence sequenceName="foo_seq" startValue="1" incrementBy="1000" cacheSize="1000"/>
+        <createTable tableName="foo">
+            <column name="foo_id" type="NUMBER(19,0)">
+                <constraints primaryKey="true" nullable="false" primaryKeyName="foo_id_pk"/>
+            </column>
+            <column name="foo1" type="VARCHAR2(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="foo2" type="VARCHAR2(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="foo3" type="VARCHAR2(255)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
 </databaseChangeLog>

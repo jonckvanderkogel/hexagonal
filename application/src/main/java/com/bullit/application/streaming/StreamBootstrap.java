@@ -1,5 +1,6 @@
 package com.bullit.application.streaming;
 
+import com.bullit.domain.port.driven.stream.BatchInputStreamPort;
 import com.bullit.domain.port.driven.stream.InputStreamPort;
 import com.bullit.domain.port.driven.stream.OutputStreamPort;
 import com.bullit.domain.port.driven.stream.StreamKey;
@@ -106,7 +107,7 @@ public class StreamBootstrap {
 
                     var resolvableType = ResolvableType
                             .forClassWithGenerics(
-                                    InputStreamPort.class,
+                                    KafkaInputStream.class,
                                     cfg.payloadType()
                             );
 

@@ -1,0 +1,24 @@
+{
+  "type": "record",
+  "name": "FooEvent",
+  "namespace": "com.bullit.domain.event",
+  "fields": [
+    {
+      "name": "fooId",
+      "type": ["null", "long"],
+      "default": null
+    },
+    {
+      "name": "foo1",
+      "type": "string"
+    },
+    {
+      "name": "foo2",
+      "type": "string"
+    },
+    {
+      "name": "foo3",
+      "type": "string"
+    }
+  ]
+}

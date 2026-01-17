@@ -161,6 +161,7 @@ class SaleFileToKafkaIT {
                                     SaleEventKey.class
                             )
                     ),
+                    List.of(),
                     List.of()
             );
         }
