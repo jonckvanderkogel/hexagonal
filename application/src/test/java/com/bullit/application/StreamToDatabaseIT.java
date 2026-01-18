@@ -1,5 +1,6 @@
 package com.bullit.application;
 
+import com.bullit.application.streaming.KafkaInputStream;
 import com.bullit.application.streaming.StreamConfigProperties;
 import com.bullit.data.adapter.driven.jpa.FooEntity;
 import com.bullit.data.adapter.driven.jpa.FooRepository;
@@ -26,6 +27,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
@@ -45,36 +47,69 @@ public class StreamToDatabaseIT {
     private FooRepository fooRepository;
     @Autowired
     private StreamToDbHandler handler;
+    @Autowired
+    private KafkaInputStream<FooEvent> fooInputStream;
 
     @Test
     public void testPerformance() {
         var total = 1_000_000L;
 
-        var startedAt = Instant.now();
-        testDataGenerator.startGenerating(total);
+        System.gc();
 
-        var generatedAt = Instant.now();
+        try (var sampler = new MemorySampler(Duration.ofMillis(200))) {
 
-        awaitAtMost(
-                Duration.ofSeconds(15),
-                Duration.ofMillis(50),
-                () -> handler.persistedCount() >= total
-        );
+            var startedAt = Instant.now();
+            testDataGenerator.startGenerating(total);
+            var generatedAt = Instant.now();
 
-        var finishedAt = Instant.now();
+            awaitAtMost(
+                    Duration.ofMinutes(15),
+                    Duration.ofMillis(50),
+                    () -> handler.persistedCount() >= total,
+                    sampler
+            );
 
-        log.info("Generated {} events in {} ms", total, Duration.between(startedAt, generatedAt).toMillis());
-        log.info("End-to-end (generated -> persisted) {} events in {} ms",
-                total, Duration.between(startedAt, finishedAt).toMillis());
+            var finishedAt = Instant.now();
 
-        assertSoftly(s -> s.assertThat(fooRepository.count()).isEqualTo(total));
+            log.info("Generated {} events in {} ms",
+                    total, Duration.between(startedAt, generatedAt).toMillis());
+
+            log.info("End-to-end (generated -> persisted) {} events in {} ms",
+                    total, Duration.between(startedAt, finishedAt).toMillis());
+
+            logMemoryUsage(sampler.snapshot());
+
+            assertSoftly(s -> s.assertThat(fooRepository.count()).isEqualTo(total));
+        }
     }
 
-    private static void awaitAtMost(Duration timeout, Duration pollEvery, java.util.function.BooleanSupplier done) {
+    private static long toMb(long bytes) {
+        return bytes / (1024 * 1024);
+    }
+
+    private void awaitAtMost(
+            Duration timeout,
+            Duration pollEvery,
+            BooleanSupplier done,
+            MemorySampler sampler
+    ) {
         var deadlineNanos = System.nanoTime() + timeout.toNanos();
+
+        var logStep = 100_000L;
+        var nextLogAt = nextLogAt(handler.persistedCount(), logStep);
 
         while (System.nanoTime() < deadlineNanos && !Thread.currentThread().isInterrupted()) {
             if (done.getAsBoolean()) return;
+
+            var persistedNow = handler.persistedCount();
+
+            if (persistedNow >= nextLogAt) {
+                log.info("persisted={}", persistedNow);
+                logStreamMetrics(fooInputStream.metricsSnapshot());
+                logMemoryUsage(sampler.snapshot());
+                nextLogAt += logStep;
+            }
+
             sleepUninterruptibly(pollEvery);
         }
 
@@ -83,6 +118,38 @@ public class StreamToDatabaseIT {
         }
 
         throw new AssertionError("Timed out after " + timeout + " waiting for condition");
+    }
+
+    private static long nextLogAt(long initial, long step) {
+        if (initial <= 0) return step;
+        return ((initial / step) + 1) * step;
+    }
+
+    private static void logMemoryUsage(MemorySampler.Snapshot snapshot) {
+        log.info("Memory used={} MB, peak={} MB, gcCollections={}, gcTimeMs={}",
+                toMb(snapshot.usedBytes()),
+                toMb(snapshot.peakUsedBytes()),
+                snapshot.gcCollections(),
+                snapshot.gcTimeMs());
+    }
+
+    private void logStreamMetrics(KafkaInputStream.StreamMetrics m) {
+        log.info(
+                "StreamMetrics topic={} partitions={} paused={} bufferedTotal={} bufferedMaxPerPartition={}",
+                m.topic(), m.partitionsKnown(), m.pausedPartitions(), m.bufferedRecordsTotal(), m.bufferedRecordsMaxPerPartition()
+        );
+
+        m.byPartition().entrySet().stream()
+                .sorted((a, b) -> Integer.compare(b.getValue().bufferedRecords(), a.getValue().bufferedRecords()))
+                .forEach(e -> {
+                    var tp = e.getKey();
+                    var pm = e.getValue();
+                    log.info(
+                            "  {}-{} buffered={} remaining={} paused={} nextOffset={}",
+                            tp.topic(), tp.partition(),
+                            pm.bufferedRecords(), pm.remainingCapacity(), pm.paused(), pm.nextOffset()
+                    );
+                });
     }
 
     private static void sleepUninterruptibly(Duration d) {

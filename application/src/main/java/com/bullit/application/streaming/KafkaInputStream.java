@@ -499,10 +499,55 @@ public final class KafkaInputStream<T> implements InputStreamPort<T>, BatchInput
         private void join() {
             joinPreservingInterrupt(thread);
         }
+
+        private PartitionMetrics metricsSnapshot() {
+            return new PartitionMetrics(
+                    queue.size(),
+                    queue.remainingCapacity(),
+                    paused.contains(tp),
+                    nextOffsetByPartition.get(tp)
+            );
+        }
     }
 
     private enum BackpressureSignal {
         NONE,
         PAUSE
+    }
+
+    public record StreamMetrics(
+            String topic,
+            int partitionsKnown,
+            int pausedPartitions,
+            long bufferedRecordsTotal,
+            long bufferedRecordsMaxPerPartition,
+            Map<TopicPartition, PartitionMetrics> byPartition
+    ) { }
+
+    public record PartitionMetrics(
+            int bufferedRecords,
+            int remainingCapacity,
+            boolean paused,
+            Long nextOffset
+    ) { }
+
+    public StreamMetrics metricsSnapshot() {
+        var byPartition = workersByPartition.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> e.getValue().metricsSnapshot()
+                ));
+
+        var bufferedTotal = byPartition.values().stream().mapToLong(PartitionMetrics::bufferedRecords).sum();
+        var bufferedMax = byPartition.values().stream().mapToLong(PartitionMetrics::bufferedRecords).max().orElse(0);
+
+        return new StreamMetrics(
+                topic,
+                byPartition.size(),
+                paused.size(),
+                bufferedTotal,
+                bufferedMax,
+                byPartition
+        );
     }
 }
