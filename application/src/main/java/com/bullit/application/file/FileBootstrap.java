@@ -1,7 +1,5 @@
 package com.bullit.application.file;
 
-import com.bullit.domain.port.driven.file.FileInputPort;
-import com.bullit.domain.port.driven.file.FileOutputPort;
 import io.minio.MinioClient;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -87,7 +85,7 @@ public class FileBootstrap {
                     log.info("Bootstrapping file input for bucket: {}", cfg.bucket());
 
                     var resolvableType = ResolvableType
-                            .forClassWithGenerics(FileInputPort.class, cfg.payloadType());
+                            .forClassWithGenerics(S3FileInput.class, cfg.payloadType());
 
                     var beanDef = new RootBeanDefinition(S3FileInput.class);
                     beanDef.setTargetType(resolvableType);
@@ -114,7 +112,7 @@ public class FileBootstrap {
                     log.info("Bootstrapping file output for payloadType: {}", cfg.payloadType().getName());
 
                     var resolvableType = ResolvableType
-                            .forClassWithGenerics(FileOutputPort.class, cfg.payloadType());
+                            .forClassWithGenerics(S3FileOutput.class, cfg.payloadType());
 
                     var beanDef = new RootBeanDefinition(S3FileOutput.class);
                     beanDef.setTargetType(resolvableType);

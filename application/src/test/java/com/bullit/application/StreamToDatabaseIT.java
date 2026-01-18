@@ -56,7 +56,7 @@ public class StreamToDatabaseIT {
         var generatedAt = Instant.now();
 
         awaitAtMost(
-                Duration.ofMinutes(5),
+                Duration.ofSeconds(15),
                 Duration.ofMillis(50),
                 () -> handler.persistedCount() >= total
         );
