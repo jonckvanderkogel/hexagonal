@@ -1,5 +1,7 @@
 package com.bullit.application;
 
+import com.bullit.application.tailrecursion.TailCall;
+import com.bullit.application.tailrecursion.TailCalls.Unit;
 import org.apache.kafka.common.errors.WakeupException;
 import org.slf4j.Logger;
 
@@ -8,6 +10,8 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static com.bullit.application.tailrecursion.TailCalls.done;
 
 public final class FunctionUtils {
     private FunctionUtils() {
@@ -42,7 +46,7 @@ public final class FunctionUtils {
             Consumer<Exception> onPoison,
             Logger log
     ) {
-        retryWithBackoff(subject, maxAttempts, 1, action, onPoison, log);
+        retryWithBackoff(subject, maxAttempts, 1, action, onPoison, log).invoke();
     }
 
     public static <T> Optional<T> retryWithBackoff(
@@ -52,10 +56,10 @@ public final class FunctionUtils {
             Function<Exception, Optional<T>> onPoison,
             Logger log
     ) {
-        return retryWithBackoff(subject, maxAttempts, 1, action, onPoison, log);
+        return retryWithBackoff(subject, maxAttempts, 1, action, onPoison, log).invoke();
     }
 
-    private static void retryWithBackoff(
+    private static TailCall<Unit> retryWithBackoff(
             String subject,
             int maxAttempts,
             int attempt,
@@ -65,19 +69,22 @@ public final class FunctionUtils {
     ) {
         try {
             action.run();
+            return done();
         } catch (Exception e) {
             if (attempt >= maxAttempts || Thread.currentThread().isInterrupted()) {
                 onPoison.accept(e);
-                return;
+                return done();
             }
+
             var wait = exponentialBackoff(attempt);
             extracted(subject, maxAttempts, attempt, wait, log);
             sleep(wait);
-            retryWithBackoff(subject, maxAttempts, attempt + 1, action, onPoison, log);
+
+            return () -> retryWithBackoff(subject, maxAttempts, attempt + 1, action, onPoison, log);
         }
     }
 
-    private static <T> Optional<T> retryWithBackoff(
+    private static <T> TailCall<Optional<T>> retryWithBackoff(
             String subject,
             int maxAttempts,
             int attempt,
@@ -86,15 +93,16 @@ public final class FunctionUtils {
             Logger log
     ) {
         try {
-            return Optional.ofNullable(action.get());
+            return done(Optional.ofNullable(action.get()));
         } catch (Exception e) {
             if (attempt >= maxAttempts || Thread.currentThread().isInterrupted()) {
-                return onPoison.apply(e);
+                return done(onPoison.apply(e));
             }
             var wait = exponentialBackoff(attempt);
             extracted(subject, maxAttempts, attempt, wait, log);
             sleep(wait);
-            return retryWithBackoff(subject, maxAttempts, attempt + 1, action, onPoison, log);
+
+            return () -> retryWithBackoff(subject, maxAttempts, attempt + 1, action, onPoison, log);
         }
     }
 

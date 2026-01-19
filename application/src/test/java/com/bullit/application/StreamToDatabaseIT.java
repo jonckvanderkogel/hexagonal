@@ -2,6 +2,7 @@ package com.bullit.application;
 
 import com.bullit.application.streaming.KafkaInputStream;
 import com.bullit.application.streaming.StreamConfigProperties;
+import com.bullit.application.tailrecursion.TailCall;
 import com.bullit.data.adapter.driven.jpa.FooEntity;
 import com.bullit.data.adapter.driven.jpa.FooRepository;
 import com.bullit.domain.event.FooEvent;
@@ -30,6 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Stream;
 
+import static com.bullit.application.tailrecursion.TailCalls.done;
 import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import static org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT;
 
@@ -63,7 +65,7 @@ public class StreamToDatabaseIT {
             var generatedAt = Instant.now();
 
             awaitAtMost(
-                    Duration.ofMinutes(15),
+                    Duration.ofSeconds(15),
                     Duration.ofMillis(50),
                     () -> handler.persistedCount() >= total,
                     sampler
@@ -81,10 +83,6 @@ public class StreamToDatabaseIT {
 
             assertSoftly(s -> s.assertThat(fooRepository.count()).isEqualTo(total));
         }
-    }
-
-    private static long toMb(long bytes) {
-        return bytes / (1024 * 1024);
     }
 
     private void awaitAtMost(
@@ -126,11 +124,33 @@ public class StreamToDatabaseIT {
     }
 
     private static void logMemoryUsage(MemorySampler.Snapshot snapshot) {
-        log.info("Memory used={} MB, peak={} MB, gcCollections={}, gcTimeMs={}",
-                toMb(snapshot.usedBytes()),
-                toMb(snapshot.peakUsedBytes()),
+        log.info("Memory used={}, peak={}, gcCollections={}, gcTimeMs={}",
+                humanReadableByteCount(snapshot.usedBytes()),
+                humanReadableByteCount(snapshot.peakUsedBytes()),
                 snapshot.gcCollections(),
                 snapshot.gcTimeMs());
+    }
+
+    private static String humanReadableByteCount(long bytes) {
+        return humanReadableByteCount(bytes, 0).invoke();
+    }
+
+    private static TailCall<String> humanReadableByteCount(long count, int dataSizePosition) {
+        if (count < 1024) {
+            return done(String.format("%d %s", count, DataSize.values()[dataSizePosition].representation));
+        }
+
+        return () -> humanReadableByteCount(count / 1024, dataSizePosition + 1);
+    }
+
+    private enum DataSize {
+        BYTE("byte"), KB("KB"), MB("MB"), GB("GB"), TB("TB");
+
+        private final String representation;
+
+        DataSize(String representation) {
+            this.representation = representation;
+        }
     }
 
     private void logStreamMetrics(KafkaInputStream.StreamMetrics m) {
