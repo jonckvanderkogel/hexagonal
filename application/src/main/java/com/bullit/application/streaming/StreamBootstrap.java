@@ -1,5 +1,6 @@
 package com.bullit.application.streaming;
 
+import com.bullit.application.streaming.input.KafkaInputStream;
 import com.bullit.domain.port.driven.stream.StreamKey;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;

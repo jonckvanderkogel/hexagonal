@@ -1,7 +1,8 @@
 package com.bullit.application;
 
-import com.bullit.application.streaming.KafkaInputStream;
+import com.bullit.application.streaming.input.KafkaInputStream;
 import com.bullit.application.streaming.StreamConfigProperties;
+import com.bullit.application.streaming.input.Metrics.StreamMetrics;
 import com.bullit.application.tailrecursion.TailCall;
 import com.bullit.data.adapter.driven.jpa.FooEntity;
 import com.bullit.data.adapter.driven.jpa.FooRepository;
@@ -153,7 +154,7 @@ public class StreamToDatabaseIT {
         }
     }
 
-    private void logStreamMetrics(KafkaInputStream.StreamMetrics m) {
+    private void logStreamMetrics(StreamMetrics m) {
         log.info(
                 "StreamMetrics topic={} partitions={} paused={} bufferedTotal={} bufferedMaxPerPartition={}",
                 m.topic(), m.partitionsKnown(), m.pausedPartitions(), m.bufferedRecordsTotal(), m.bufferedRecordsMaxPerPartition()

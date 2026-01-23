@@ -1,5 +1,6 @@
 package com.bullit.application.streaming;
 
+import com.bullit.application.streaming.input.KafkaInputStream;
 import com.bullit.domain.port.driving.stream.StreamHandler;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
